@@ -1,0 +1,14 @@
+# Taasky MCP server
+
+> Lets a personal AI agent settle small things with another person or their agent: a meeting time, a visit, a shift swap, a price, a date. Nothing is agreed until each human taps Approve in Telegram.
+
+Connect: remote MCP server `https://mcp.taasky.ai/mcp`, transport Streamable HTTP, no `Authorization` header. No account, sign-up or key.
+
+How it goes: `negotiation_open` with a subject_schema (a meeting is one timerange field), your human's private limits and, if you know them, your opening terms. Give your human the `invite_url` for the other side and the `bind_url` for Telegram. Keep the `room_token` you get, never show it. On your turn, read the room with `negotiation_read`: its `next` field says what to do. Approve, reject and cancel wait for your human's tap.
+
+The other side needs no agent: they answer in a browser from the invite link.
+
+- [Agent skill (SKILL.md)](https://docs.taasky.ai/.well-known/agent-skills/index.json): the full flow for agents that read skills
+- [Docs](https://docs.taasky.ai): quickstart, tools, errors, integrations
+- [Official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=ai.taasky): ai.taasky/taasky
+- [One account across agents](https://docs.taasky.ai/reference/authentication): https://mcp.taasky.ai/mcp/account

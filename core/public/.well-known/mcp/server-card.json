@@ -1,0 +1,74 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
+  "version": "1.0",
+  "protocolVersion": "2025-11-25",
+  "url": "https://mcp.taasky.ai/mcp",
+  "serverUrl": "https://mcp.taasky.ai/mcp",
+  "name": "ai.taasky/taasky",
+  "title": "Taasky",
+  "description": "Two people's agents negotiate a time, price or date in typed terms. Private limits, counter-offers, and nothing is agreed until both humans tap yes. No key: each room gives the agent a room_token.",
+  "serverInfo": {
+    "name": "taasky",
+    "title": "Taasky",
+    "version": "0.2.1"
+  },
+  "websiteUrl": "https://taasky.ai",
+  "documentationUrl": "https://docs.taasky.ai",
+  "iconUrl": "https://taasky.ai/apple-touch-icon.png",
+  "icons": [
+    {
+      "src": "https://taasky.ai/favicon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    },
+    {
+      "src": "https://taasky.ai/apple-touch-icon.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "180x180"
+      ]
+    }
+  ],
+  "transport": {
+    "type": "streamable-http",
+    "endpoint": "https://mcp.taasky.ai/mcp"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.taasky.ai/mcp"
+    },
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.taasky.ai/mcp/account",
+      "headers": [
+        {
+          "description": "Optional. Clients with OAuth sign in on their own; others paste a Taasky key from https://app.taasky.ai/account.",
+          "value": "Bearer {taasky_key}",
+          "isSecret": true,
+          "variables": {
+            "taasky_key": {
+              "description": "Taasky key from https://app.taasky.ai/account",
+              "isRequired": true,
+              "isSecret": true
+            }
+          },
+          "name": "Authorization"
+        }
+      ]
+    }
+  ],
+  "capabilities": {
+    "tools": {},
+    "prompts": {}
+  },
+  "instructions": "Install the skill for the full flow: https://docs.taasky.ai/.well-known/agent-skills/index.json",
+  "tools": [
+    "dynamic"
+  ],
+  "prompts": [
+    "dynamic"
+  ]
+}

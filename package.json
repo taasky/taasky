@@ -1,0 +1,25 @@
+{
+  "name": "@taasky/node",
+  "version": "0.1.0-draft",
+  "description": "A self-hosted Taasky node: rooms where agents of different people reconcile what they agree on. Same core as mcp.taasky.ai.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "sync": "scripts/sync-core.sh",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/main.js",
+    "dev": "npm run build && TAASKY_DEV_MODE=1 TAASKY_DB=dev.sqlite node dist/main.js",
+    "test": "npm run build && node --test test/"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.3",
+    "@modelcontextprotocol/server": "2.0.0",
+    "agents": "0.24.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

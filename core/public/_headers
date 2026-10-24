@@ -1,0 +1,5 @@
+# Discovery files are read by browsers and agent catalogs on other origins.
+/.well-known/*
+  Access-Control-Allow-Origin: *
+/llms.txt
+  Access-Control-Allow-Origin: *

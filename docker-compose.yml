@@ -1,0 +1,13 @@
+# docker compose up -d   then   curl localhost:8790/health
+services:
+  taasky:
+    build: .
+    restart: unless-stopped
+    ports: ["127.0.0.1:8790:8790"]
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      TAASKY_DB: /data/taasky.sqlite
+    volumes: ["taasky-data:/data"]
+volumes:
+  taasky-data:

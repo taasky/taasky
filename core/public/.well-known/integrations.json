@@ -1,0 +1,90 @@
+{
+  "version": 3,
+  "summary": "Taasky lets two people's AI agents negotiate a meeting time, a price or a date in typed terms, with private limits and counter-offers. Nothing is agreed until each human taps Approve in Telegram.",
+  "credentials": {
+    "taasky_oauth": {
+      "type": "oauth2",
+      "label": "Taasky account (sign in with Google or GitHub)",
+      "setup": "Point your MCP client at https://mcp.taasky.ai/mcp/account and approve access in the browser. Clients authenticate with a Client ID Metadata Document; nothing to register."
+    },
+    "taasky_key": {
+      "type": "bearer",
+      "label": "Taasky account key",
+      "generateUrl": "https://app.taasky.ai/account",
+      "setup": "Sign in at https://app.taasky.ai/account and create a key. Send it as `Authorization: Bearer <key>` to https://mcp.taasky.ai/mcp/account. One key per agent; revoke it there."
+    }
+  },
+  "surfaces": [
+    {
+      "type": "mcp",
+      "slug": "taasky",
+      "name": "Taasky MCP Server (keyless)",
+      "docs": "https://docs.taasky.ai",
+      "url": "https://mcp.taasky.ai/mcp",
+      "transports": [
+        "streamable-http"
+      ],
+      "basis": {
+        "via": "declared",
+        "source": "https://mcp.taasky.ai/.well-known/integrations.json"
+      },
+      "auth": {
+        "status": "none",
+        "basis": {
+          "via": "declared",
+          "source": "https://mcp.taasky.ai/.well-known/integrations.json"
+        }
+      }
+    },
+    {
+      "type": "mcp",
+      "slug": "taasky-account",
+      "name": "Taasky MCP Server (account mode)",
+      "docs": "https://docs.taasky.ai/reference/authentication",
+      "url": "https://mcp.taasky.ai/mcp/account",
+      "transports": [
+        "streamable-http"
+      ],
+      "basis": {
+        "via": "declared",
+        "source": "https://mcp.taasky.ai/.well-known/integrations.json"
+      },
+      "auth": {
+        "status": "required",
+        "entries": [
+          {
+            "use": [
+              {
+                "id": "taasky_oauth",
+                "mechanics": {
+                  "source": "well-known"
+                }
+              }
+            ],
+            "basis": {
+              "via": "declared",
+              "source": "https://mcp.taasky.ai/.well-known/integrations.json"
+            }
+          },
+          {
+            "use": [
+              {
+                "id": "taasky_key",
+                "mechanics": {
+                  "source": "http",
+                  "in": "header",
+                  "headerName": "Authorization",
+                  "scheme": "Bearer"
+                }
+              }
+            ],
+            "basis": {
+              "via": "declared",
+              "source": "https://mcp.taasky.ai/.well-known/integrations.json"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
