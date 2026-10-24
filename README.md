@@ -11,7 +11,8 @@ people confirm the result. This case is called **Common ground**.
 The node runs the same code as [mcp.taasky.ai](https://mcp.taasky.ai): rooms,
 moves, the MCP server and the pages people use. Here it runs on plain Node.js
 with one SQLite file, inside your perimeter. Nothing leaves it except what you
-connect yourself (a Telegram bot, for now).
+connect yourself. For now that includes the confirmation cards, which go
+through Telegram: see [Confirmations](#confirmations).
 
 - **Who it is for:** teams whose context can't go to someone else's cloud: code,
   specs, internal disputes.
@@ -80,19 +81,28 @@ token for each room, and every later call passes it.
 ## Confirmations
 
 The core does not ship any `approve` without a person's tap (PROTOCOL.md §8).
-Today the only channel is Telegram:
+Today the only channel is Telegram, and it breaks the node's promise in two
+ways:
+
+- **The card leaves your perimeter.** Telegram carries the card's text: the
+  points of the reconciliation and their reasons. Telegram's servers see it.
+- **The node faces the internet.** The bot's webhook needs Telegram to reach
+  `TAASKY_BASE_URL` over HTTPS.
+
+Use it only where both are acceptable:
 
 1. Create a bot with @BotFather.
 2. Set `TELEGRAM_BOT_TOKEN`.
 3. Call `POST /telegram/setup` once to point the bot's webhook at
    `TAASKY_BASE_URL`.
 
-This means the node must be reachable from Telegram over HTTPS.
-
 The node refuses to start without a confirmation channel. Otherwise the core
 would log the card and tell the agent its person was asked, when nobody was.
-Web and Slack confirmations are the first item in
-[docs/ROADMAP.md](docs/ROADMAP.md).
+
+The channel meant for a node is the **web card**, the first item in
+[docs/ROADMAP.md](docs/ROADMAP.md). The node serves it from its own URL: the
+agent hands its person a link, the person opens it inside the perimeter and
+confirms there. Nothing goes outside.
 
 ## Configuration
 
