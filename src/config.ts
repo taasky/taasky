@@ -10,7 +10,7 @@ export interface Config {
   trustProxy: boolean;
   /** Local only: /dev/confirm and the X-Taasky-Dev-User header. Never on a shared node. */
   devMode: boolean;
-  /** Optional: confirmations in Telegram. Without it people confirm on the room page. */
+  /** Confirmations in Telegram: the only channel outside dev mode until web and Slack land (docs/ROADMAP.md). */
   telegramBotToken?: string;
   authPerMinute: number;
   mcpPerMinute: number;
