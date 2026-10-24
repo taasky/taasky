@@ -4,13 +4,10 @@ What the node needs before 0.1.0 is released, in order.
 
 ## Before a release
 
-1. **Confirmations without Telegram.** The web card is in (taasky-mcp #69,
-   not yet merged; `core/` is synced from its branch). Left:
-   - **Slack**, the second push channel in PROTOCOL.md §8, and the one teams
-     already live in. It goes into taasky-mcp's `Notifier`, so the hosted
-     service gets it too.
-   - **The skill.** `taasky/plugin` knows `bind_url` only. The server's
-     `next` tells the agent to send `confirm_url`; the skill should too.
+1. **Confirmations without Telegram.** The web card is in (taasky-mcp #69),
+   and skill 0.3.15 hands `confirm_url` to the human. Left: **Slack**, the
+   second push channel in PROTOCOL.md §8, and the one teams already live in.
+   It goes into taasky-mcp's `Notifier`, so the hosted service gets it too.
 2. **Identity from the company.** Keyless rooms work today, but a node should
    know who is who. Two steps:
    - first, a trusted header from the reverse proxy (`X-Forwarded-User` after
