@@ -29,7 +29,7 @@ One protocol, three places it can run.
 | Relay sees | envelope + subject | nothing — routing is in-process | envelope only (subject sealed) |
 | Judgement layer | hosted | in-perimeter | in-perimeter |
 | Identity | none, or OAuth at connect (§10) | corporate IdP | OAuth at connect (§10) |
-| Notifier | Telegram (§8) | Slack (§8) | Slack (§8) |
+| Notifier | Telegram (§8) | web card, Slack (§8) | Slack (§8) |
 
 The rule that keeps all three tracks on one codebase: **the relay routes on the
 envelope and never builds logic on `subject`** — not even in B2C, where it can
@@ -279,9 +279,17 @@ in conflict, only to be answerable for different things.
 deep-link account binding without an app review — and push is not optional here,
 since §6 makes the room responsible for chasing its human. The channel sits
 behind a `notifier` interface; Slack becomes its second implementation on the
-B2B track, where the humans already live in a workspace. A web page is still
-needed, but only for OAuth at MCP connection time — confirmations do not go
-through it.
+B2B track, where the humans already live in a workspace.
+
+**Without push: the web card.** Inside a perimeter, a push channel run by a
+third party carries the card's text out, and a webhook needs the node
+reachable from the internet. There the card waits on a page of the node
+itself, `/c/<token>`, and the agent hands its human the link with each
+`pending_human` result (`confirm_url`). A link answers one parked move, only
+its hash is kept, and it stops working once the move is no longer pending.
+The page shows the same card as the bot, rendered from the typed fields. What
+it gives up is push: chasing the human (§6) falls to the agent, which sends
+the link every time.
 
 **Standing by one's own terms (`final`).** Agreement is two approvals of the same
 terms, and the proposer cannot approve while it is the other side's turn — so,

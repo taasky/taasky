@@ -117,7 +117,7 @@ const SIGNED_IN_FLOW = `How a negotiation goes:
 1. negotiation_open with a subject_schema and, when you know them, your opening terms as subject. You get invite_url. Give it to your human to send to the other side (or send it yourself if you can message them). The invitation shows your terms, and the other side can accept them as soon as they join.
 2. Opened without terms? The first move is still yours: negotiation_propose with verdict "offer", before or after they join. Before they join, nothing else is possible except withdrawing.
 3. On each of your turns: negotiation_propose "counter" for different terms, or "need_more_detail"; negotiation_respond "approve" (pass subject_hash from negotiation_read's terms_on_table) or "reject"; negotiation_cancel to withdraw.
-4. approve, reject and cancel return status pending_human: your human confirms in Telegram. Any result with bind_url means your human has not connected Telegram yet. Send them that link once. negotiation_open returns it too, so it can go out with the invite, before it is needed.
+4. approve, reject and cancel return status pending_human: your human confirms in Telegram. Any result with bind_url means your human has not connected Telegram yet. Send them that link once. On a server without Telegram the result carries confirm_url instead: the card waits on that page, so send it to your human every time. negotiation_open returns it too, so it can go out with the invite, before it is needed.
 5. The room is agreed when both sides approved the same subject_hash.
 
 Nothing is pushed to you. Check negotiation_list when your human says something happened, and every few minutes while you wait on the other side.`;
@@ -130,7 +130,7 @@ How a negotiation goes:
    Negotiated through Taasky before? Pass any earlier room_token as previous_room_token to negotiation_open or negotiation_join: confirmations go to the chat your human already connected, and you get no bind_url to send.
 2. Opened without terms? The first move is still yours: negotiation_propose with verdict "offer", before or after they join. Before they join, nothing else is possible except withdrawing.
 3. On each of your turns: negotiation_propose "counter" for different terms, or "need_more_detail"; negotiation_respond "approve" (pass subject_hash from negotiation_read's terms_on_table) or "reject"; negotiation_cancel to withdraw.
-4. approve, reject and cancel return status pending_human: your human confirms in Telegram. If they have not pressed Start under bind_url yet, the result carries bind_url again. Send it.
+4. approve, reject and cancel return status pending_human: your human confirms in Telegram. If they have not pressed Start under bind_url yet, the result carries bind_url again. Send it. A result with confirm_url means the card waits on that page: send that link to your human, every time.
 5. The room is agreed when both sides approved the same subject_hash.
 
 Nothing is pushed to you. Call negotiation_read when your human says something happened, and every few minutes while you wait on the other side. Its next field says what to do now. When it is your turn, move, then tell your human: your human asked you to settle this, and approve still waits for their tap.`;
@@ -994,7 +994,11 @@ export function createServer(
             final: {
               status: "pending_human",
               card: standing.card,
-              ...(standing.delivery.delivered ? {} : { bind_url: standing.delivery.bind_url }),
+              ...("confirm_url" in standing.delivery
+                ? { confirm_url: standing.delivery.confirm_url }
+                : "bind_url" in standing.delivery
+                  ? { bind_url: standing.delivery.bind_url }
+                  : {}),
               note:
                 "Your human is asked to stand by these terms. Once they confirm, the other " +
                 "side's approve agrees the room; you do not approve them again.",
@@ -1004,7 +1008,9 @@ export function createServer(
             ? `${sentLine(verdict, moved.state)} ${
                 standing.delivery.delivered
                   ? "Taasky has asked you in Telegram to stand by these terms: then their yes closes it."
-                  : "To let their yes close it, connect Taasky in Telegram with the link I am sending and confirm there."
+                  : "confirm_url" in standing.delivery
+                    ? "To let their yes close it, open the link I am sending and confirm there."
+                    : "To let their yes close it, connect Taasky in Telegram with the link I am sending and confirm there."
               }`
             : sentLine(verdict, moved.state),
           ...(circling && { circling: true }),
@@ -1065,6 +1071,18 @@ export function createServer(
       const now = new Date();
       const loaded = await loadRoom(env.DB, id, userId, now);
       const { card, delivery } = await requestHumanMove(env.DB, notifier, loaded, req, now);
+      if ("confirm_url" in delivery) {
+        return ok({
+          status: "pending_human",
+          for_your_human:
+            "Not sent yet. Open the link I am sending and confirm there. Nothing is agreed until you do.",
+          card,
+          confirm_url: delivery.confirm_url,
+          next:
+            "Send your human confirm_url now: the card waits on that page, and nothing else " +
+            "tells them. Nothing is sent until they answer there; negotiation_read shows the outcome.",
+        });
+      }
       if (!delivery.delivered) {
         return ok({
           status: "pending_human",

@@ -789,6 +789,33 @@ export async function viewLinkFor(
   return row!.token;
 }
 
+/** /c/<token>: the web card for one parked move (src/web/confirm.ts). */
+export interface ConfirmLink {
+  token_hash: string;
+  pending_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export async function insertConfirmLink(db: D1Database, l: ConfirmLink): Promise<void> {
+  await db
+    .prepare(
+      "INSERT INTO confirm_links (token_hash, pending_id, user_id, created_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind(l.token_hash, l.pending_id, l.user_id, l.created_at)
+    .run();
+}
+
+export async function getConfirmLink(
+  db: D1Database,
+  tokenHash: string,
+): Promise<ConfirmLink | null> {
+  return db
+    .prepare("SELECT * FROM confirm_links WHERE token_hash = ?")
+    .bind(tokenHash)
+    .first<ConfirmLink>();
+}
+
 export async function getViewLink(db: D1Database, token: string): Promise<WebLink | null> {
   return db.prepare("SELECT * FROM view_links WHERE token = ?").bind(token).first<WebLink>();
 }

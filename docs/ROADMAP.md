@@ -4,18 +4,13 @@ What the node needs before 0.1.0 is released, in order.
 
 ## Before a release
 
-1. **Confirmations without Telegram.** The blocker. Today the only channel is
-   Telegram, and the bot's webhook needs the node to be reachable from the
-   internet. Two channels:
-   - **Web card.** The agent hands its person a link to a page on the node.
-     The page shows the confirmation card (the list with its reasons, open
-     items first) and confirms with one tap. A link per seat, kept as a hash,
-     like room tokens.
-   - **Slack.** The second channel in PROTOCOL.md §8, and the one teams
-     already live in.
-
-   Both go into taasky-mcp's `Notifier` (`core/src/notifier.ts`), so the
-   hosted service gets them too.
+1. **Confirmations without Telegram.** The web card is in (taasky-mcp #69,
+   not yet merged; `core/` is synced from its branch). Left:
+   - **Slack**, the second push channel in PROTOCOL.md §8, and the one teams
+     already live in. It goes into taasky-mcp's `Notifier`, so the hosted
+     service gets it too.
+   - **The skill.** `taasky/plugin` knows `bind_url` only. The server's
+     `next` tells the agent to send `confirm_url`; the skill should too.
 2. **Identity from the company.** Keyless rooms work today, but a node should
    know who is who. Two steps:
    - first, a trusted header from the reverse proxy (`X-Forwarded-User` after
@@ -31,8 +26,9 @@ What the node needs before 0.1.0 is released, in order.
 6. **Licences of what core/public ships.** The fonts (Instrument Serif, Inter,
    JetBrains Mono) are under the OFL, so their licence files go next to them.
    The images and pages are Taasky's own.
-7. **Security review** of what a node exposes: room tokens, the card links,
-   `/keys`, rate limits behind a proxy.
+7. **Security review** of what a node exposes: room tokens, the card links
+   (the whole credential until identity lands), `/keys`, rate limits behind a
+   proxy.
 
 ## After
 

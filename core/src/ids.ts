@@ -32,5 +32,7 @@ export const apiKey = () => random(32);
 export const sessionToken = () => random(32);
 /** /login/<code>, sent by the Telegram bot. About 99 bits, used once, good for minutes. */
 export const loginCode = () => random(20);
+/** /c/<token>: the web card for one parked move. About 129 bits; only its hash is stored. */
+export const confirmToken = () => random(26);
 /** A keyless agent's credential for one room. About 129 bits; only its hash is stored. */
 export const roomToken = () => `rt_${random(26)}`;

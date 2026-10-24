@@ -121,7 +121,7 @@ function status(r: CardInput): string {
     case "draft":
       return "Not agreed yet. The other side has not opened the invitation.";
   }
-  if (r.awaitingYourHuman) return "Not agreed yet. Waiting for your confirmation in Telegram.";
+  if (r.awaitingYourHuman) return "Not agreed yet. Waiting for your confirmation.";
   if (r.youDeclined === "approve") return "Not agreed yet. You tapped Don't on these terms.";
   if (r.youDeclined)
     return `Not agreed yet. You tapped Don't on the ${r.youDeclined}; the room stays open.`;

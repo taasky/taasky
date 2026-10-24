@@ -15,7 +15,7 @@ export const appBase = (env: HostEnv) => env.APP_BASE_URL ?? env.PUBLIC_BASE_URL
 
 /** Pages for people: the account, the bot's sign-in links, invitations, rooms and their poll, the site's forms. */
 const FOR_PEOPLE =
-  /^\/(?:account(?:\/.*)?|login\/[a-z0-9]{20}|[ipr]\/[a-z0-9]+(?:\/v|\/calendar\.ics)?|forms\/(?:early-access|waitlist))$/;
+  /^\/(?:account(?:\/.*)?|login\/[a-z0-9]{20}|[cipr]\/[a-z0-9]+(?:\/v|\/calendar\.ics)?|forms\/(?:early-access|waitlist))$/;
 
 /** Both hosts finish a sign-in: an account's on the app, an agent's OAuth on mcp. */
 const EITHER = /^\/(?:callback\/[a-z]+|health)$/;

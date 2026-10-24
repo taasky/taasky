@@ -25,6 +25,7 @@ import {
   telegramNotifier,
   WEBHOOK_PATH,
 } from "./telegram.js";
+import { handleConfirm, webNotifier } from "./web/confirm.js";
 import { handleWeb } from "./web/routes.js";
 import { apiCatalog, openaiAppsChallenge, skillsIndex } from "./wellknown.js";
 
@@ -37,6 +38,11 @@ type Env = ServerEnv &
     AUTH_LIMITER: RateLimit;
     MCP_LIMITER: RateLimit;
     TELEGRAM_BOT_TOKEN?: string;
+    /**
+     * "web": humans confirm on the web card (src/web/confirm.ts), even with a
+     * bot configured. For a node, where the card must not leave the perimeter.
+     */
+    CONFIRMATIONS?: string;
     /** The leads bot and chat (secrets): a message per form submission. */
     LEADS_TELEGRAM_BOT_TOKEN?: string;
     LEADS_TELEGRAM_CHAT_ID?: string;
@@ -114,11 +120,19 @@ async function mcp(request: Request, env: Env, ctx: ExecutionContext, caller: Ca
   })(request, env, ctx);
 }
 
-/** Telegram when the bot is configured; locally, the log and /dev/confirm. Observed either way. */
-function notifier(env: Env, a: Analytics): Notifier {
+/**
+ * The web card when asked for; else Telegram when the bot is configured;
+ * locally, the log and /dev/confirm.
+ */
+function channel(env: Env, a?: Analytics): Notifier {
+  if (env.CONFIRMATIONS === "web") return webNotifier(env);
   const token = env.TELEGRAM_BOT_TOKEN;
-  const base = token ? telegramNotifier({ ...env, TELEGRAM_BOT_TOKEN: token }, a) : logNotifier;
-  return observed(base, a, env.DB);
+  return token ? telegramNotifier({ ...env, TELEGRAM_BOT_TOKEN: token }, a) : logNotifier;
+}
+
+/** The human's channel, observed. */
+function notifier(env: Env, a: Analytics): Notifier {
+  return observed(channel(env, a), a, env.DB);
 }
 
 function accountDeps(env: Env, a: Analytics): AccountDeps {
@@ -160,6 +174,9 @@ const publicRoutes: ExportedHandler<Env> = {
 
     const account = await handleAccount(request, accountDeps(env, a));
     if (account) return account;
+
+    const confirm = await handleConfirm(request, env);
+    if (confirm) return confirm;
 
     // Invite links are handed to humans, so they land in a browser first.
     const web = await handleWeb(request, {
@@ -258,9 +275,7 @@ const worker = {
   /** Hourly (wrangler.jsonc triggers): rooms that ran out are closed and their humans told. */
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     const a = analytics(env, ctx);
-    const token = env.TELEGRAM_BOT_TOKEN;
-    const channel = token ? telegramNotifier({ ...env, TELEGRAM_BOT_TOKEN: token }) : logNotifier;
-    const result = await expireRooms(env.DB, channel, a, new Date());
+    const result = await expireRooms(env.DB, channel(env), a, new Date());
     console.log(JSON.stringify({ event: "rooms_expired", ...result }));
   },
 

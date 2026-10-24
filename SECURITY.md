@@ -8,8 +8,8 @@ contact address and a response time.)
 
 - **Rooms and moves.** This includes the subject in cleartext: the internal
   track trusts the node's operator with it.
-- **Room tokens and API keys, as hashes only.** A token is the whole credential
-  for its seat in one room.
+- **Room tokens, card links and API keys, as hashes only.** A token is the
+  whole credential for its seat in one room; a card link, for one answer.
 - **OAuth grants and tokens** of agents that signed in.
 
 Back up and protect the SQLite file as you would the documents it summarises.

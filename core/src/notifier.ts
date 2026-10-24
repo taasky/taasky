@@ -1,5 +1,6 @@
 // The human's channel (PROTOCOL.md §8). Telegram is the v1 implementation
-// (src/telegram.ts) and Slack the second.
+// (src/telegram.ts), the web card (src/web/confirm.ts) serves a node without
+// it, and Slack is the second push channel.
 
 import type { HumanGatedVerdict } from "./protocol/envelope.js";
 import type { Breach } from "./protocol/limits.js";
@@ -49,8 +50,13 @@ export interface Alternative {
 /**
  * Whether the card reached the human. Before their channel is bound it cannot:
  * the agent gets a link to hand them, and binding it delivers the card (§10).
+ * On the web card nothing is pushed: the card waits under `confirm_url`, and
+ * the agent hands that link to its human.
  */
-export type Delivery = { delivered: true } | { delivered: false; bind_url: string };
+export type Delivery =
+  | { delivered: true }
+  | { delivered: false; bind_url: string }
+  | { delivered: false; confirm_url: string };
 
 export interface Notifier {
   requestConfirmation(userId: string, card: ConfirmationCard): Promise<Delivery>;
