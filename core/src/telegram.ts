@@ -131,7 +131,7 @@ const termLines = (fields: CardField[]) =>
   );
 
 /** One broken limit, in the confirming human's words. They set the bound, so it is theirs to see. */
-function breachText(type: FieldType, b: Breach): string {
+export function breachText(type: FieldType, b: Breach): string {
   switch (b.rule) {
     case "below_min":
       return type === "timerange"

@@ -9,14 +9,18 @@
 //   POST /i/<code>   join as a browser party → /p/<token>
 //   GET  /p/<token>  that party's view of the room
 //   POST /p/<token>  their move
-//   GET  /r/<token>  the room, read-only, for the human behind an agent —
-//                    where Telegram's "Open the negotiation" leads
+//   GET  /r/<token>  the room for the human behind an agent: their human_url,
+//                    and where Telegram's "Open the negotiation" leads. Read-only,
+//                    except for a move their agent parked: its card waits on top
+//   POST /r/<token>  their answer to that card: confirm, decline, or a counter
+//                    instead. Asked for JSON (scripts/smoke.mjs), the outcome as data
 //   GET  /p/<token>/calendar.ics, /r/<token>/calendar.ics
 //                    the agreed deal as a calendar event (calendar.ts)
 //
-// The person makes their own moves here, so approve / reject / cancel are
+// The person makes their own moves on /p, so approve / reject / cancel are
 // released directly: the human gate (§8) exists to keep an agent from deciding
-// alone, and no agent is involved.
+// alone, and no agent is involved. On /r the agent decided, so the person
+// confirms here (or in Telegram) before anything is sent.
 
 import { readCookie } from "../account/session.js";
 import { agreedEvent, type CalendarEvent, googleCalendarUrl, icsFile } from "../calendar.js";
@@ -27,6 +31,8 @@ import { duo, escapeHtml, htmlResponse, page, plate } from "../html.js";
 import { userId as newUserId, webToken } from "../ids.js";
 import {
   ANSWERED,
+  cardForPending,
+  counterInstead,
   INVITE_EXPIRED,
   joinRoom,
   type LoadedRoom,
@@ -38,6 +44,7 @@ import {
   pickedAndConfirmed,
   pickOption,
   playMove,
+  resolveHumanMove,
   WITHDRAWN,
 } from "../moves.js";
 import { roomLabel, roomName } from "../names.js";
@@ -47,12 +54,14 @@ import { termsOnTable } from "../protocol/move.js";
 import { isTerminal, MoveError } from "../protocol/state.js";
 import { type FieldType, SubjectError, type SubjectSchema } from "../protocol/subject.js";
 import { replayPace, replayStory } from "../replay.js";
+import { cardMessage } from "../telegram.js";
 import {
   agentInvite,
   agentInviteMarkdown,
   type InviteFormat,
   inviteFormat,
 } from "./agent-invite.js";
+import { cardHtml } from "./card.js";
 import { parseFields, renderFields, TIMERANGE_SCRIPT } from "./form.js";
 
 export interface WebDeps extends HostEnv {
@@ -87,7 +96,10 @@ export async function handleWeb(request: Request, deps: WebDeps): Promise<Respon
   }
   const view = /^\/r\/([a-z0-9]{26})(\/v|\/calendar\.ics)?$/.exec(pathname);
   if (view) {
-    if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+    const answering = request.method === "POST" && !view[2];
+    if (request.method !== "GET" && !answering) {
+      return new Response("Method not allowed", { status: 405 });
+    }
     const link = await db.getViewLink(deps.DB, view[1]!);
     if (!link)
       return message(
@@ -97,6 +109,7 @@ export async function handleWeb(request: Request, deps: WebDeps): Promise<Respon
       );
     if (view[2] === "/calendar.ics") return calendarFile(deps, link, "r");
     if (view[2]) return Response.json({ v: await roomVersion(deps.DB, link.room_id) });
+    if (answering) return answerCard(deps, link, request);
     return showRoom(deps, link, undefined, undefined, true);
   }
   return null;
@@ -158,12 +171,15 @@ const GET_TAASKY = `<div class="side-note after">
 async function roomVersion(d1: D1Database, roomId: string): Promise<string> {
   const row = await d1
     .prepare(
-      `SELECT r.state, (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS n
+      `SELECT r.state, (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS n,
+              (SELECT group_concat(id) FROM pending_moves p
+                WHERE p.room_id = r.id AND p.status = 'pending') AS asks
          FROM rooms r WHERE r.id = ?`,
     )
     .bind(roomId)
-    .first<{ state: string; n: number }>();
-  return row ? `${row.state}:${row.n}` : "gone";
+    .first<{ state: string; n: number; asks: string | null }>();
+  // A parked move changes the page too: its card appears, then goes.
+  return row ? `${row.state}:${row.n}:${row.asks ?? ""}` : "gone";
 }
 
 /**
@@ -777,22 +793,30 @@ async function showRoom(
   const they = them?.name ?? "they";
   const them_ = them?.name ?? "them";
 
+  // A move the agent parked for this person: the page is theirs to answer.
+  const asked = readOnly && !done ? await db.getOpenPendingMove(deps.DB, room.id, me.id) : null;
+
   // Headlines follow DESIGN.md: two lines, the second italic.
-  const [title, lede, status]: [string, string, string] =
-    readOnly && !done
+  const [title, lede, status]: [string, string, string] = asked
+    ? [
+        "Your agent asks you.",
+        asked.verdict === "approve"
+          ? "It wants to accept the terms on the right. Nothing is sent until you answer."
+          : asked.verdict === "reject"
+            ? "It wants to turn these terms down. Nothing is sent until you answer."
+            : "It wants to withdraw from this negotiation. Nothing is sent until you answer.",
+        "Your yes",
+      ]
+    : readOnly && !done
       ? room.state === "draft"
         ? ["Invitation sent.", "Your agent offers terms once the other side joins.", "Their move"]
         : yourTurn
           ? [
               terms ? "Their terms are in." : "The room is open.",
-              "Your agent is on it. Anything it accepts comes to you in Telegram first.",
+              "Your agent is on it. Anything it accepts comes to you here first.",
               "Your move",
             ]
-          : [
-              "Your side has answered.",
-              "This page refreshes by itself, and Telegram tells you when it's done.",
-              "Their move",
-            ]
+          : ["Your side has answered.", "This page refreshes by itself.", "Their move"]
       : room.state === "agreed"
         ? [
             "Both sides said yes.",
@@ -839,15 +863,17 @@ async function showRoom(
       ? "It's agreed."
       : done
         ? "The room is closed."
-        : yourTurn
-          ? readOnly
-            ? "Your agent's move."
-            : theyAccepted
-              ? "Your turn to."
-              : "Over to you."
-          : readOnly
-            ? "Now it's theirs."
-            : `Over to ${them_}.`;
+        : asked
+          ? "Your call."
+          : yourTurn
+            ? readOnly
+              ? "Your agent's move."
+              : theyAccepted
+                ? "Your turn to."
+                : "Over to you."
+            : readOnly
+              ? "Now it's theirs."
+              : `Over to ${them_}.`;
   const live = room.state === "agreed" ? "both" : done ? "none" : yourTurn ? "you" : "them";
   // Once agreed, the lede tells how it came together.
   const story =
@@ -879,6 +905,11 @@ async function showRoom(
   if (moves) lead.push(moves);
 
   const side: string[] = [];
+  // The move the agent parked for this person: its card first, with the buttons.
+  if (asked) {
+    const card = await cardForPending(deps.DB, asked, link.user_id, new Date());
+    side.push(cardHtml(card, cardMessage(card)));
+  }
   side.push(termsHtml);
   const kind = readOnly ? "r" : "p";
   const event =
@@ -931,10 +962,18 @@ async function showRoom(
   }
 
   if (readOnly && !done) {
-    lead.push(`<div class="side-note">
-  <p class="eyebrow quiet" style="margin:0">Your agent negotiates this</p>
-  <p>Accepting, turning down or withdrawing still waits for your tap in Telegram.</p>
-</div>`);
+    const note = [
+      `<p class="eyebrow quiet" style="margin:0">Your agent negotiates this</p>
+  <p>Accepting, turning down or withdrawing waits for your yes. It shows up on this page.</p>`,
+    ];
+    if (deps.bindUrl && !(await db.getChannel(deps.DB, link.user_id))) {
+      note.push(`<p>Telegram can tell you when there's something to confirm, so you don't have to check back.</p>
+  <a class="button inline" href="${escapeHtml(await deps.bindUrl(link.user_id))}">Tell me in Telegram <span class="arrow">&rarr;</span></a>`);
+    }
+    note.push(
+      `<p><small>This is your personal link. Anyone who has it can answer for you.</small></p>`,
+    );
+    lead.push(`<div class="side-note">${note.join("\n")}</div>`);
   } else if (!done) {
     const note: string[] = [];
     if (deps.bindUrl) {
@@ -958,7 +997,7 @@ async function showRoom(
   // An open room can change from either side at any time: a withdrawal, the
   // deadline, the same person on another device.
   const waiting = !done;
-  const version = `${room.state}:${loaded.history.length}`;
+  const version = await roomVersion(deps.DB, room.id);
   return htmlResponse(
     page(
       roomName(room.id).name,
@@ -968,6 +1007,47 @@ async function showRoom(
     ),
     error ? 422 : 200,
   );
+}
+
+/**
+ * The person's answer to the card on /r. The form names the parked move, and
+ * resolveHumanMove checks it is this person's and still pending.
+ */
+async function answerCard(deps: WebDeps, link: db.WebLink, request: Request): Promise<Response> {
+  const json = request.headers.get("Accept")?.includes("application/json") ?? false;
+  const form = await request.formData();
+  const pending = String(form.get("pending") ?? "");
+  const decision = String(form.get("decision") ?? "");
+  const now = new Date();
+  let result: { status: string; reason?: string };
+  try {
+    if (decision === "confirm" || decision === "decline") {
+      result = await resolveHumanMove(deps.DB, link.user_id, pending, decision, now);
+    } else if (decision === "instead") {
+      const option = Number(form.get("option"));
+      result = await counterInstead(deps.DB, link.user_id, pending, option, now);
+    } else {
+      return json
+        ? Response.json({ error: "unknown decision" }, { status: 400 })
+        : showRoom(deps, link, "That answer isn't one of the buttons.", undefined, true);
+    }
+  } catch (e) {
+    if (!(e instanceof MoveError)) throw e;
+    return json
+      ? Response.json({ error: e.message }, { status: 409 })
+      : showRoom(deps, link, `Not sent: ${e.message}.`, undefined, true);
+  }
+  if (result.status === "released" || result.status === "countered") {
+    await deps.notifier.roomChanged(link.room_id, link.user_id);
+  }
+  if (json) return Response.json(result);
+  const stale =
+    result.status === "stale"
+      ? `Not sent: the room moved since this card (${result.reason}).`
+      : undefined;
+  return stale
+    ? showRoom(deps, link, stale, undefined, true)
+    : new Response(null, { status: 303, headers: { Location: `/r/${link.token}` } });
 }
 
 async function move(deps: WebDeps, link: db.WebLink, form: FormData): Promise<Response> {

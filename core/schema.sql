@@ -141,16 +141,6 @@ CREATE TABLE IF NOT EXISTS view_links (
   created_at TEXT NOT NULL
 );
 
--- /c/<token>: the web card for one parked move, where the human confirms
--- without Telegram (src/web/confirm.ts). Only the token's hash is kept: the
--- agent hands the link over once, and it answers one move.
-CREATE TABLE IF NOT EXISTS confirm_links (
-  token_hash TEXT PRIMARY KEY,
-  pending_id TEXT NOT NULL REFERENCES pending_moves(id),
-  user_id    TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-
 CREATE INDEX IF NOT EXISTS idx_web_links_user ON web_links(user_id, room_id);
 CREATE INDEX IF NOT EXISTS idx_participants_room ON participants(room_id);
 CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(user_id);

@@ -4,7 +4,7 @@
 // an older copy to fetch it again. Bump this after a new skill.md is live on
 // docs.taasky.ai; .github/workflows/skill-version.yml checks it is.
 
-export const SKILL_VERSION = "0.3.14";
+export const SKILL_VERSION = "0.4.0";
 
 /** Versioned, so docs.taasky.ai's day-long cache never serves an old copy (taasky-docs). */
 export const SKILL_URL = `https://docs.taasky.ai/.well-known/agent-skills/taasky/skill.md?v=${SKILL_VERSION}`;

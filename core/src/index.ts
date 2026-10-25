@@ -15,6 +15,7 @@ import { logNotifier, type Notifier } from "./notifier.js";
 import { observed } from "./observe.js";
 import { MoveError } from "./protocol/state.js";
 import { type Caller, createServer, type Env as ServerEnv } from "./server.js";
+import { SKILL_VERSION } from "./skill.js";
 import {
   bindUrl,
   chatOf,
@@ -25,7 +26,6 @@ import {
   telegramNotifier,
   WEBHOOK_PATH,
 } from "./telegram.js";
-import { handleConfirm, webNotifier } from "./web/confirm.js";
 import { handleWeb } from "./web/routes.js";
 import { apiCatalog, openaiAppsChallenge, skillsIndex } from "./wellknown.js";
 
@@ -38,14 +38,11 @@ type Env = ServerEnv &
     AUTH_LIMITER: RateLimit;
     MCP_LIMITER: RateLimit;
     TELEGRAM_BOT_TOKEN?: string;
-    /**
-     * "web": humans confirm on the web card (src/web/confirm.ts), even with a
-     * bot configured. For a node, where the card must not leave the perimeter.
-     */
-    CONFIRMATIONS?: string;
     /** The leads bot and chat (secrets): a message per form submission. */
     LEADS_TELEGRAM_BOT_TOKEN?: string;
     LEADS_TELEGRAM_CHAT_ID?: string;
+    /** The git commit deployed, set by `npm run deploy`; shown on /health. */
+    COMMIT?: string;
     /** The OpenAI plugin portal's domain challenge token (wrangler.jsonc vars, once issued). */
     OPENAI_APPS_CHALLENGE?: string;
   };
@@ -120,12 +117,8 @@ async function mcp(request: Request, env: Env, ctx: ExecutionContext, caller: Ca
   })(request, env, ctx);
 }
 
-/**
- * The web card when asked for; else Telegram when the bot is configured;
- * locally, the log and /dev/confirm.
- */
+/** Telegram when the bot is configured; locally, the log and /dev/confirm. */
 function channel(env: Env, a?: Analytics): Notifier {
-  if (env.CONFIRMATIONS === "web") return webNotifier(env);
   const token = env.TELEGRAM_BOT_TOKEN;
   return token ? telegramNotifier({ ...env, TELEGRAM_BOT_TOKEN: token }, a) : logNotifier;
 }
@@ -161,7 +154,13 @@ const publicRoutes: ExportedHandler<Env> = {
     }
 
     if (url.pathname === "/health") {
-      return Response.json({ ok: true, service: "taasky-mcp", version: "0.1.0" });
+      // What is live: the commit `npm run deploy` stamps, and the skill the server announces.
+      return Response.json({
+        ok: true,
+        service: "taasky-mcp",
+        commit: env.COMMIT ?? null,
+        skill_version: SKILL_VERSION,
+      });
     }
 
     const form = await handleForms(request, env, (message) => {
@@ -174,9 +173,6 @@ const publicRoutes: ExportedHandler<Env> = {
 
     const account = await handleAccount(request, accountDeps(env, a));
     if (account) return account;
-
-    const confirm = await handleConfirm(request, env);
-    if (confirm) return confirm;
 
     // Invite links are handed to humans, so they land in a browser first.
     const web = await handleWeb(request, {

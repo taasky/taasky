@@ -30,7 +30,7 @@ export function nextStep(r: NextInput): string {
     return `The room is ${r.state}; nothing more can happen in it. Tell your human if they don't know yet.`;
   }
   if (r.awaitingYourHuman) {
-    return "Your move is waiting for your human's tap in Telegram. Don't move again; remind them if it has been a while.";
+    return "Your move is waiting for your human's yes on their page (human_url). Don't move again; remind them and send the link if it has been a while.";
   }
   if (r.humanDeclined) {
     const what =
@@ -62,5 +62,5 @@ export function nextStep(r: NextInput): string {
     const fields = r.outside.map((b) => b.field).join(", ");
     return `Their terms are outside your human's limits (${fields}): counter now with negotiation_propose, keeping their terms where you can and yours only there. Then tell your human what you sent.`;
   }
-  return "Their terms are within your human's limits: approve them now with negotiation_respond (your human confirms in Telegram), unless your human asked for something they don't meet. Then tell your human.";
+  return "Their terms are within your human's limits: approve them now with negotiation_respond (your human confirms on their page), unless your human asked for something they don't meet. Then tell your human.";
 }
