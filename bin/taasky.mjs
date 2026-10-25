@@ -1,15 +1,22 @@
 #!/usr/bin/env node
-// taasky-node local    a node on this machine, for your own sessions: Claude Code,
-//                      Codex, a worktree and the session already open. Loopback
-//                      only, one SQLite file in ~/.taasky, nothing leaves the machine.
-// taasky-node connect  adds that node to Claude Code and Codex as the MCP server
-//                      "taasky-local", for every project.
-// taasky-node          the node as configured by its environment (see .env.example).
+// taasky local    a node on this machine, for your own sessions: Claude Code,
+//                 Codex, a worktree and the session already open. Loopback
+//                 only, one SQLite file in ~/.taasky, nothing leaves the machine.
+// taasky connect  adds that node to Claude Code and Codex as the MCP server
+//                 "taasky-local", for every project.
+// taasky          the node as configured by its environment (see .env.example).
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+// The OAuth provider tells Workers how to turn CIMD on. A node has no
+// wrangler.jsonc and keeps CIMD off, so the hint only confuses.
+const warn = console.warn;
+console.warn = (...args) => {
+  if (!String(args[0]).startsWith("CIMD (Client ID Metadata Document) is disabled")) warn(...args);
+};
 
 const [command = "start", ...rest] = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -41,7 +48,7 @@ if (command === "local") {
     TAASKY_DEV_MODE: "0",
   });
   console.log(`Taasky on this machine: ${url}/mcp`);
-  console.log("Not connected yet? Run: taasky-node connect");
+  console.log("Not connected yet? In another terminal: npx taasky connect");
   await import("../dist/main.js");
 } else if (command === "connect") {
   const mcp = `${url}/mcp`;
@@ -64,6 +71,6 @@ if (command === "local") {
 } else if (command === "start") {
   await import("../dist/main.js");
 } else {
-  console.error("Usage: taasky-node [local | connect] [--port 8790]");
+  console.error("Usage: taasky [local | connect] [--port 8790]");
   process.exit(2);
 }

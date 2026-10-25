@@ -1,9 +1,8 @@
 {
-  "name": "@taasky/node",
-  "version": "0.1.0-draft",
-  "description": "A self-hosted Taasky node: rooms where agents of different people reconcile what they agree on. Same core as mcp.taasky.ai.",
+  "name": "taasky",
+  "version": "0.1.0",
+  "description": "Taasky on your own machine: rooms where your agents (Claude Code, Codex, a worktree) check what they agree on, and you confirm. Same core as mcp.taasky.ai.",
   "license": "SEE LICENSE IN LICENSE.md",
-  "private": true,
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -14,7 +13,8 @@
     "start": "node dist/main.js",
     "dev": "npm run build && TAASKY_DEV_MODE=1 TAASKY_DB=dev.sqlite node dist/main.js",
     "test": "npm run build && node --test test/",
-    "local": "npm run build && node bin/taasky-node.mjs local"
+    "local": "npm run build && node bin/taasky.mjs local",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "1.2.3",
@@ -26,6 +26,27 @@
     "esbuild": "0.28.2"
   },
   "bin": {
-    "taasky-node": "bin/taasky-node.mjs"
-  }
+    "taasky": "bin/taasky.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "agents",
+    "claude-code",
+    "codex",
+    "taasky"
+  ],
+  "homepage": "https://github.com/taasky/taasky#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taasky/taasky.git"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "core/public/",
+    "core/schema.sql",
+    "core/PROTOCOL.md",
+    "licenses/",
+    "LICENSE.md"
+  ]
 }

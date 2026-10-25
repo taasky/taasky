@@ -1,45 +1,48 @@
-# Taasky node
+# Taasky
 
-**Draft, 0.1.0-draft. Not released.** What is missing before a release is in
-[docs/ROADMAP.md](docs/ROADMAP.md).
-
-A Taasky node you run yourself. Agents of different people meet in one room
-and reconcile what they understand: which points they agree on and which stay
-open. Each agent brings only what a point needs, not its whole context. The
-people confirm the result. This case is called **Common ground**.
-
-The node runs the same code as [mcp.taasky.ai](https://mcp.taasky.ai): rooms,
-moves, the MCP server and the pages people use. Here it runs on plain Node.js
-with one SQLite file, inside your perimeter. Nothing leaves it except what you connect yourself:
-people confirm on the node's own pages, and Telegram is an option you turn on.
-
-- **Who it is for:** teams whose context can't go to someone else's cloud: code,
-  specs, internal disputes.
-- **Who it is not for:** settling things with strangers (a meeting, a price).
-  That needs a neutral relay both sides can reach, so use the hosted
-  [mcp.taasky.ai](https://mcp.taasky.ai).
-
-In the protocol this is the *B2B internal* deployment track
-([core/PROTOCOL.md](core/PROTOCOL.md) §2). The protocol itself is open:
-[taasky/protocol](https://github.com/taasky/protocol).
-
-## On your own machine
-
-For your own sessions: Claude Code and Codex on the same repo, a worktree
-session and the one already open. The node listens on loopback only, keeps
-one SQLite file in `~/.taasky`, and nothing leaves the machine.
+Taasky on your own machine. Two agent sessions on one task meet in a room and
+check what they agree on: Claude Code in the main checkout and Codex in a
+worktree, say. You read the result on one page and confirm it. Nothing leaves
+your machine.
 
 ```sh
-npm ci && npm run build
-node bin/taasky-node.mjs local      # http://localhost:8790/mcp
-node bin/taasky-node.mjs connect    # adds it to Claude Code and Codex as taasky-local
+npx taasky local      # Taasky at http://localhost:8790/mcp
+npx taasky connect    # in another terminal: adds it to Claude Code and Codex
 ```
 
-`connect` runs `claude mcp add --scope user` and `codex mcp add`, so every new
-session sees `taasky-local`. Sessions already open pick it up after a restart.
-You confirm on your own page of the room (`human_url`), one per session.
+Node.js 24 or later. `local` listens on loopback only and keeps one SQLite
+file in `~/.taasky`. `connect` runs `claude mcp add --scope user` and
+`codex mcp add`, so every new session sees `taasky-local`. Sessions already
+open pick it up after a restart.
 
-## Run it
+Then install the `common-ground` skill from the
+[Taasky plugin](https://github.com/taasky/plugin) and ask one session to
+check something with the other. You choose who joins: the agent hands you an
+invite link, and you pass it to the other session. Each session gives you its
+own page of the room (`human_url`), and nothing is agreed until you confirm
+there.
+
+The code is the same as [mcp.taasky.ai](https://mcp.taasky.ai): rooms, moves,
+the MCP server and the pages people use. Here it runs on plain Node.js with
+one SQLite file. The protocol is open:
+[taasky/protocol](https://github.com/taasky/protocol).
+
+## A node for your team
+
+**Draft.** What is missing before a team can rely on it is in
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
+The same code can serve a team inside its own perimeter: agents of different
+people reconcile what they understand, and each person confirms the result.
+It suits teams whose context can't go to someone else's cloud: code, specs,
+internal disputes. Settling things with strangers (a meeting, a visit) needs a
+relay both sides can reach, so use the hosted
+[mcp.taasky.ai](https://mcp.taasky.ai) for that. In the protocol this is the
+*B2B internal* deployment track ([core/PROTOCOL.md](core/PROTOCOL.md) §2).
+
+### Run it
+
+From a clone of this repository:
 
 Node.js 24 or later.
 
@@ -59,7 +62,7 @@ the `X-Taasky-Dev-User` header, and `POST /dev/confirm/<pending_id>` confirms
 without the card. Anyone who can reach the node can act as anyone, so it binds
 to loopback only.
 
-**With Docker:**
+### With Docker
 
 ```sh
 cp .env.example .env   # set TAASKY_BASE_URL
@@ -71,7 +74,7 @@ The image runs as `node`. The data lives in the `taasky-data` volume, in
 reverse proxy with TLS in front of the node, and set `TAASKY_TRUST_PROXY=1`
 so that rate limits see the client's address.
 
-## Connect the agents
+### Connect the agents
 
 Each person points their agent at the node instead of mcp.taasky.ai.
 
@@ -94,7 +97,7 @@ plugin.
 `/mcp` without an `Authorization` header is keyless. The agent gets a room
 token for each room, and every later call passes it.
 
-## Confirmations
+### Confirmations
 
 The core does not ship any `approve` without a person's tap (PROTOCOL.md §8).
 Each person has one page per room, `human_url`, and the card waits there:
@@ -124,7 +127,7 @@ Use it only where both are acceptable:
 3. Call `POST /telegram/setup` once to point the bot's webhook at
    `TAASKY_BASE_URL`.
 
-## Configuration
+### Configuration
 
 | variable | default | |
 | --- | --- | --- |
@@ -157,6 +160,11 @@ More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 npm test                                       # the host's D1 and KV slice
 TAASKY_URL=http://localhost:8790 node ../taasky-mcp/scripts/smoke.mjs   # end to end, against npm run dev
 ```
+
+## Fonts
+
+The pages use Instrument Serif, Inter and JetBrains Mono under the SIL Open
+Font License 1.1. Their licences are in [licenses/](licenses/).
 
 ## License
 
