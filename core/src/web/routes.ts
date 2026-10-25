@@ -942,6 +942,12 @@ async function showRoom(
     ...(them ? [withLine(them, "With")] : []),
     `<p class="lede">${story ?? escapeHtml(lede)}</p>`,
   ];
+  // Mid-room the page has no buttons; the agent is the way to change course.
+  if (readOnly && !done && !asked && room.state !== "draft") {
+    lead.push(
+      `<p class="aside">Something off? Tell your agent. It can change course or stop here.</p>`,
+    );
+  }
   if (error) lead.push(`<p class="notice">${escapeHtml(error)}</p>`);
   // Under the joined spheres: how long it took.
   const pace = room.state === "agreed" ? replayPace(loaded.history) : null;

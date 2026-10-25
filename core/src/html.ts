@@ -70,6 +70,7 @@ const STYLE = `
   h2 { font: 400 clamp(2rem, 3vw, 2.6rem)/1.04 var(--serif); letter-spacing: -.015em; margin: 0 0 1.2rem; }
   p { margin: .75rem 0; color: var(--moon-muted); }
   .lede { font-size: clamp(1.05rem, 1.3vw, 1.2rem); line-height: 1.65; max-width: 34rem; }
+  .aside { color: var(--moon-subtle); font-size: .95rem; margin-top: -.4rem; max-width: 34rem; }
   strong { color: var(--moon); font-weight: 500; }
   small { font-size: .88rem; color: var(--moon-subtle); }
   a { color: var(--champagne-bright); text-underline-offset: 3px; }
