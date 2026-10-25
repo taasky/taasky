@@ -196,6 +196,25 @@ function formatValue(type: FieldType, value: unknown): string {
 
 const FINDING = /^F(\d+)\s*·\s*(proposed|agreed|disputed|open)\s*·\s*([\s\S]*)$/i;
 
+/**
+ * How a list of findings stands, by status, in the order a person cares about:
+ * "2 disputed, 1 open, 5 agreed". Null when the items aren't findings.
+ */
+export function findingCounts(items: unknown[]): string | null {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const m = FINDING.exec(String(item).trim());
+    if (!m) return null;
+    const status = m[2]!.toLowerCase();
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+  }
+  if (!counts.size) return null;
+  return ["disputed", "open", "proposed", "agreed"]
+    .filter((st) => counts.has(st))
+    .map((st) => `${counts.get(st)} ${st}`)
+    .join(", ");
+}
+
 /** Telegram refuses a message over 4096 characters; leave room for the heading and links. */
 const ALIGN_BUDGET = 3500;
 

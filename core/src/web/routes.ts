@@ -54,7 +54,7 @@ import { termsOnTable } from "../protocol/move.js";
 import { isTerminal, MoveError } from "../protocol/state.js";
 import { type FieldType, SubjectError, type SubjectSchema } from "../protocol/subject.js";
 import { replayPace, replayStory } from "../replay.js";
-import { cardMessage } from "../telegram.js";
+import { cardMessage, findingCounts } from "../telegram.js";
 import {
   agentInvite,
   agentInviteMarkdown,
@@ -713,9 +713,11 @@ function movesBlock(loaded: LoadedRoom, readOnly: boolean, them: string | null):
             .slice(0, 3)
             .map(([field, decl]) => {
               const v = subject[field];
-              const shown = (Array.isArray(v) ? v : [v])
-                .map((item) => showValue(decl.type, item))
-                .join(", ");
+              // A list of findings in one line is unreadable: say how it stands instead.
+              const counts = Array.isArray(v) ? findingCounts(v) : null;
+              const shown = counts
+                ? escapeHtml(counts)
+                : (Array.isArray(v) ? v : [v]).map((item) => showValue(decl.type, item)).join(", ");
               return `<span class="label">${escapeHtml(decl.label)}</span> ${shown}`;
             })
             .join('<span class="sep"> · </span>')
