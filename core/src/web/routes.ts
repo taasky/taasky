@@ -54,7 +54,7 @@ import { termsOnTable } from "../protocol/move.js";
 import { isTerminal, MoveError } from "../protocol/state.js";
 import { type FieldType, SubjectError, type SubjectSchema } from "../protocol/subject.js";
 import { replayPace, replayStory } from "../replay.js";
-import { cardMessage, findingCounts } from "../telegram.js";
+import { cardMessage, findingCounts, parseFinding } from "../telegram.js";
 import {
   agentInvite,
   agentInviteMarkdown,
@@ -595,11 +595,33 @@ function showValue(type: FieldType, item: unknown): string {
 }
 
 /** Terms as rows of facts, in the order their author declared the fields. */
+/**
+ * A shared-picture list, short enough to read before saying yes: the findings
+ * the sides still differ on first, each claim in full and its reason small.
+ */
+function findingList(items: unknown[]): string {
+  const parsed = items.map(parseFinding).filter((f) => f !== null);
+  const order = (st: string) => (st === "agreed" ? 1 : 0);
+  return `<ol>${parsed
+    .sort((a, b) => order(a.status) - order(b.status) || Number(a.n) - Number(b.n))
+    .map(
+      (f) =>
+        `<li class="${escapeHtml(f.status)}"><span class="fid">F${escapeHtml(f.n)} · ${escapeHtml(f.status)}</span> ${escapeHtml(f.claim)}${
+          f.reason ? `<small>${escapeHtml(f.reason)}</small>` : ""
+        }</li>`,
+    )
+    .join("")}</ol>`;
+}
+
 function factRows(schema: SubjectSchema, subject: Record<string, unknown>): string {
   return Object.entries(schema)
     .filter(([field]) => subject[field] !== undefined)
     .map(([field, decl]) => {
       const v = subject[field];
+      const counts = Array.isArray(v) ? findingCounts(v) : null;
+      if (counts) {
+        return `<div><dt>${escapeHtml(decl.label)} · ${escapeHtml(counts)}</dt><dd class="findings">${findingList(v as unknown[])}</dd></div>`;
+      }
       const shown = (Array.isArray(v) ? v : [v])
         .map((item) => showValue(decl.type, item))
         .join("<br>");
@@ -648,6 +670,30 @@ function nearness(loaded: LoadedRoom): number {
 }
 
 /** The terms on the table as facts: label in mono, value in serif. */
+/**
+ * A shared-picture room (topic, findings, conclusion) read the way a person
+ * decides on it: the conclusion large on top, what it rests on below, and the
+ * findings folded away with their counts. Null for any other shape.
+ */
+function sharedPicture(schema: SubjectSchema, subject: Record<string, unknown>): string | null {
+  const findings = subject.findings;
+  const counts = Array.isArray(findings) ? findingCounts(findings) : null;
+  if (!counts || typeof subject.topic !== "string") return null;
+  const label = (field: string) => escapeHtml(schema[field]?.label ?? field);
+  const conclusion = typeof subject.conclusion === "string" ? subject.conclusion.trim() : "";
+  const rest = Object.fromEntries(
+    Object.entries(schema).filter(([f]) => !["topic", "conclusion", "findings"].includes(f)),
+  );
+  const restRows = factRows(rest, subject);
+  return `<div class="picture">
+  <p class="topic">${escapeHtml(subject.topic)}</p>
+  ${conclusion ? `<p class="verdict${conclusion.length > 140 ? " long" : ""}">${escapeHtml(conclusion)}</p>` : `<p class="verdict pending">No conclusion yet.</p>`}
+</div>
+  ${restRows ? `<dl class="facts">${restRows}</dl>` : ""}
+  <details class="findings-box"><summary>${label("findings")} · ${escapeHtml(counts)}</summary>
+  <div class="facts"><dd class="findings">${findingList(findings as unknown[])}</dd></div></details>`;
+}
+
 function termsBlock(loaded: LoadedRoom): { html: string; terms: db.MessageRow | null } {
   const terms = termsOnTable(loaded.history);
   if (!terms?.subject) {
@@ -659,7 +705,9 @@ function termsBlock(loaded: LoadedRoom): { html: string; terms: db.MessageRow | 
     };
   }
   const author = loaded.parties.find((p) => p.id === terms.from_id)!;
-  const rows = factRows(author.subject_schema, terms.subject);
+  const rows =
+    sharedPicture(author.subject_schema, terms.subject) ??
+    `<dl class="facts">${factRows(author.subject_schema, terms.subject)}</dl>`;
   const agreed = loaded.room.state === "agreed";
   const by = agreed
     ? "the deal"
@@ -671,7 +719,7 @@ function termsBlock(loaded: LoadedRoom): { html: string; terms: db.MessageRow | 
   return {
     html: `<section class="terms${agreed ? " sealed" : ""}">
   <header class="terms-head"><span>The details</span><span>${by}</span></header>
-  <dl class="facts">${rows}</dl>
+  ${rows}
   ${agreed ? `<footer class="terms-foot">Accepted by both sides</footer>` : ""}
   ${agreed ? `<img class="seal" src="/img/seal.webp" alt="Sealed by both sides" width="440" height="440">` : ""}
 </section>`,
@@ -806,7 +854,7 @@ async function showRoom(
           ? "It wants to accept the terms on the right. Nothing is sent until you answer."
           : asked.verdict === "reject"
             ? "It wants to turn these terms down. Nothing is sent until you answer."
-            : "It wants to withdraw from this negotiation. Nothing is sent until you answer.",
+            : "It wants to stop here. The room would close for both sides with nothing agreed. Nothing happens until you answer.",
         "Your yes",
       ]
     : readOnly && !done

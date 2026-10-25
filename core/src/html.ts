@@ -102,6 +102,20 @@ const STYLE = `
   .facts dt { font: 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .22em; color: var(--moon-subtle); margin-bottom: .45rem; }
   .facts dd { margin: 0; font: 400 clamp(1.55rem, 2.2vw, 1.9rem)/1.15 var(--serif); color: var(--moon); overflow-wrap: anywhere; }
   .facts dd .to { color: var(--moon-subtle); }
+  .picture { text-align: center; padding: 1.4rem 0 1.8rem; }
+  .picture .topic { font: 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .18em; color: var(--moon-subtle); margin: 0 0 .9rem; }
+  .picture .verdict { font: 700 clamp(1.3rem, 2.4vw, 1.75rem)/1.3 var(--sans); color: var(--moon); margin: 0 auto; max-width: 34ch; text-wrap: balance; }
+  .picture .verdict.long { font: 600 1.05rem/1.5 var(--sans); text-align: left; max-width: 60ch; text-wrap: pretty; }
+  .picture .verdict.pending { font-weight: 400; color: var(--moon-subtle); }
+  .findings-box { margin: 0 0 1.6rem; background: var(--glow) top / 100% 1px no-repeat; padding-top: 1rem; }
+  .findings-box summary { cursor: pointer; font: 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .22em; color: var(--champagne); padding: .2rem 0; }
+  .findings-box[open] summary { margin-bottom: .9rem; }
+  .findings-box dd { margin: 0; }
+  .facts dd.findings { font: 400 1rem/1.5 var(--sans); }
+  .facts dd.findings ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
+  .facts dd.findings .fid { font: 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--champagne); margin-right: .35rem; }
+  .facts dd.findings li.agreed .fid { color: var(--moon-subtle); }
+  .facts dd.findings small { display: block; font-size: .85rem; color: var(--moon-subtle); }
   ul.fields { list-style: none; padding: 0; margin: 2rem 0; max-width: 34rem; }
   ul.fields li { padding: .85rem 0; font: 400 1.6rem/1.2 var(--serif); color: var(--moon); background: var(--glow) top / 100% 1px no-repeat; }
   ul.fields li:last-child { background: var(--glow) top / 100% 1px no-repeat, var(--glow) bottom / 100% 1px no-repeat; }

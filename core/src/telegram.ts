@@ -97,10 +97,14 @@ const escapeHtml = (value: string) =>
 // 🟡 your answer is needed · 👋 joined · 📨 terms · 🔁 different terms ·
 // ❓ more detail · 👍 accepted · ⏳ waiting for them · 🤝 agreed ·
 // ❌ turned down · 🚪 withdrawn · ⌛ expired.
-const ASK: Record<HumanGatedVerdict, { question: string; yes: string }> = {
+const ASK: Record<HumanGatedVerdict, { question: string; yes: string; no?: string }> = {
   approve: { question: "🟡 <b>Accept these terms?</b>", yes: "✅ Accept" },
   reject: { question: "🟡 <b>Turn down these terms?</b>", yes: "👎 Turn down" },
-  cancel: { question: "🟡 <b>Withdraw from this negotiation?</b>", yes: "🚪 Withdraw" },
+  cancel: {
+    question: "🟡 <b>Stop here?</b> The room closes for both sides and nothing is agreed.",
+    yes: "🚪 Stop",
+    no: "↩️ Keep going",
+  },
 };
 
 /** First line of every message about a room: "🦊 Amber Fox · Round 2". */
@@ -195,6 +199,23 @@ function formatValue(type: FieldType, value: unknown): string {
 // differ, then what they agreed, with each finding's reason.
 
 const FINDING = /^F(\d+)\s*·\s*(proposed|agreed|disputed|open)\s*·\s*([\s\S]*)$/i;
+
+/** One finding of a shared-picture room, split for display; null if it isn't one. */
+export function parseFinding(
+  item: unknown,
+): { n: string; status: string; claim: string; reason: string } | null {
+  const m = FINDING.exec(String(item).trim());
+  if (!m) return null;
+  const text = m[3]!.trim();
+  // The reason or evidence comes after the last colon (the skill's form).
+  const cut = text.lastIndexOf(": ");
+  return {
+    n: m[1]!,
+    status: m[2]!.toLowerCase(),
+    claim: cut > 0 ? text.slice(0, cut) : text,
+    reason: cut > 0 ? text.slice(cut + 2) : "",
+  };
+}
 
 /**
  * How a list of findings stands, by status, in the order a person cares about:
@@ -371,7 +392,7 @@ export function cardMessage(card: ConfirmationCard, roomUrl?: string, them?: db.
       inline_keyboard: [
         [
           { text: ask.yes, callback_data: `c:${card.pending_id}` },
-          { text: "❌ Don't", callback_data: `d:${card.pending_id}` },
+          { text: ("no" in ask && ask.no) || "❌ Don't", callback_data: `d:${card.pending_id}` },
         ],
         ...(instead.length
           ? [
@@ -944,7 +965,7 @@ function outcomeText(
       : "⏳ Accepted. Waiting for the other party to accept too.";
   }
   if (verdict === "reject") return "❌ Turned down. Your agent can keep negotiating.";
-  return "🚪 Withdrawn. The negotiation is closed for both sides.";
+  return "🚪 Stopped. The room is closed for both sides and nothing was agreed.";
 }
 
 async function onButton(env: TelegramEnv, deps: WebhookDeps, query: CallbackQuery) {
