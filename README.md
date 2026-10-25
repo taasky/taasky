@@ -6,8 +6,8 @@ worktree, say. You read the result on one page and confirm it. Nothing leaves
 your machine.
 
 ```sh
-npx taasky local      # Taasky at http://localhost:8790/mcp
-npx taasky connect    # in another terminal: adds it to Claude Code and Codex
+npx @taasky/taasky local    # Taasky at http://localhost:8790/mcp
+npx @taasky/taasky connect  # in another terminal: adds it to Claude Code and Codex
 ```
 
 Node.js 24 or later. `local` listens on loopback only and keeps one SQLite

@@ -4,7 +4,7 @@ What the node needs before 0.1.0 is released, in order.
 
 ## Local mode (H23)
 
-`npx taasky local` and `connect` are in. Next, if our own use says so:
+`npx @taasky/taasky local` and `connect` are in. Next, if our own use says so:
 
 - one confirmation for both seats when both are the same person;
 - start at login (a LaunchAgent on macOS);
