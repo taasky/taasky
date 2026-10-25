@@ -103,6 +103,43 @@ const STYLE = `
   .facts dt { font: 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .22em; color: var(--moon-subtle); margin-bottom: .45rem; }
   .facts dd { margin: 0; font: 400 clamp(1.55rem, 2.2vw, 1.9rem)/1.15 var(--serif); color: var(--moon); overflow-wrap: anywhere; }
   .facts dd .to { color: var(--moon-subtle); }
+  /* A reconciliation as a review: the conclusion and points left, the call right. */
+  .review { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 0; align-items: start; padding: 1.5rem 0 3rem; }
+  .review-main { padding-right: clamp(1.5rem, 3vw, 2.5rem); border-right: 1px solid var(--night-rule); min-width: 0; }
+  .review-main .topic { font: 12px/1.5 var(--mono); color: var(--moon-subtle); margin: 0 0 .6rem; }
+  .review-main h1 { font: 700 clamp(1.5rem, 2.4vw, 1.85rem)/1.3 var(--sans); letter-spacing: 0; margin: 0 0 1.2rem; max-width: 46rem; text-wrap: pretty; }
+  .review-main h2 { font: 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .18em; color: var(--moon-subtle); margin: 1.8rem 0 .6rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.2rem; }
+  .chip { font: 12px/1 var(--mono); padding: .45rem .7rem; border-radius: 6px; }
+  .chip.agreed { background: color-mix(in oklab, var(--success) 25%, transparent); color: #7fd1a6; }
+  .chip.disputed { background: color-mix(in oklab, var(--danger) 25%, transparent); color: #f08a7e; }
+  .chip.open, .chip.proposed { background: color-mix(in oklab, var(--amber) 30%, transparent); color: #e3b55a; }
+  .points { list-style: none; margin: 0; padding: 0; border: 1px solid var(--night-rule); border-radius: 10px; overflow: hidden; }
+  .points li { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: .2rem 1rem; padding: .8rem 1.1rem; border-top: 1px solid var(--night-rule); font-size: 15px; line-height: 1.5; }
+  .points li:first-child { border-top: 0; }
+  .points li.disputed { background: var(--night-raised); }
+  .points .fid { font: 12px/1.9 var(--mono); grid-row: span 2; }
+  .points .agreed .fid { color: #7fd1a6; } .points .disputed .fid { color: #f08a7e; } .points .open .fid, .points .proposed .fid { color: #e3b55a; }
+  .points .why { grid-column: 2; color: var(--moon-subtle); font-size: 14px; }
+  .next { margin: 0; padding-left: 1.2rem; font-size: 15px; }
+  .review-side { padding-left: clamp(1.25rem, 2.5vw, 1.75rem); display: flex; flex-direction: column; gap: 1.8rem; font-size: 14px; }
+  .review-side .eyebrow { margin: 0 0 .7rem; }
+  .review-side .card-ask { margin: 0; padding: 1.2rem; border: 1px solid color-mix(in oklab, var(--champagne) 35%, var(--night-rule)); border-radius: 12px; background: color-mix(in oklab, var(--champagne) 6%, transparent); }
+  .review-side .card-ask.quiet, .review-side .card-ask.settled { border-color: var(--night-rule); background: transparent; }
+  .review-side .card-ask .actions { display: flex; flex-direction: column; gap: .5rem; }
+  .review-side .card-ask .actions button { width: 100%; }
+  .who, .went { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+  .who li, .went li { padding-left: 1.1rem; position: relative; color: var(--moon-muted); }
+  .who li::before, .went li::before { content: ""; position: absolute; left: 0; top: .5em; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--you)); }
+  .who li.them::before, .went li.them::before { background: rgb(var(--them)); }
+  .went time { color: var(--moon-subtle); margin-right: .3rem; }
+  .went small { display: block; color: var(--moon-subtle); }
+  @media (max-width: 920px) {
+    .review { grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+    .review-main { padding-right: 0; border-right: 0; }
+    .review-side { padding-left: 0; }
+  }
+  @media (max-width: 480px) { .points li { grid-template-columns: minmax(0, 1fr); } .points .fid { grid-row: auto; } .points .why { grid-column: 1; } }
   .picture { text-align: center; padding: 1.4rem 0 1.8rem; }
   .picture .topic { font: 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .18em; color: var(--moon-subtle); margin: 0 0 .9rem; }
   .picture .verdict { font: 700 clamp(1.3rem, 2.4vw, 1.75rem)/1.3 var(--sans); color: var(--moon); margin: 0 auto; max-width: 34ch; text-wrap: balance; }

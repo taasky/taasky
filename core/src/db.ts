@@ -519,6 +519,21 @@ export async function getOpenPendingMove(
     .first<PendingMove>();
 }
 
+/** The oldest move still waiting for a human in the room, from any seat (one-human mode). */
+export async function getOpenPendingMoveInRoom(
+  db: D1Database,
+  roomId: string,
+): Promise<PendingMove | null> {
+  return db
+    .prepare(
+      `SELECT * FROM pending_moves
+        WHERE room_id = ? AND status = 'pending'
+        ORDER BY created_at, id LIMIT 1`,
+    )
+    .bind(roomId)
+    .first<PendingMove>();
+}
+
 /** The party's latest pending move that its human has already answered, if any. */
 export async function lastResolvedPendingMove(
   db: D1Database,

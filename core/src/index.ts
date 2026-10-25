@@ -96,7 +96,9 @@ async function devConfirm(request: Request, env: Env, id: string): Promise<Respo
     return Response.json({ error: 'decision must be "confirm" or "decline"' }, { status: 400 });
   }
   try {
-    return Response.json(await resolveHumanMove(env.DB, user, id, decision, new Date()));
+    return Response.json(
+      await resolveHumanMove(env.DB, user, id, decision, new Date(), env.ONE_HUMAN === "1"),
+    );
   } catch (e) {
     if (e instanceof MoveError) return Response.json({ error: e.message }, { status: 409 });
     throw e;
@@ -180,6 +182,7 @@ const publicRoutes: ExportedHandler<Env> = {
       PUBLIC_BASE_URL: env.PUBLIC_BASE_URL,
       APP_BASE_URL: env.APP_BASE_URL,
       notifier: notifier(env, a),
+      oneHuman: env.ONE_HUMAN === "1",
       bindUrl: env.TELEGRAM_BOT_TOKEN
         ? (userId) => bindUrl({ ...env, TELEGRAM_BOT_TOKEN: env.TELEGRAM_BOT_TOKEN! }, userId)
         : undefined,

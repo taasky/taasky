@@ -67,6 +67,8 @@ import { parseFields, renderFields, TIMERANGE_SCRIPT } from "./form.js";
 export interface WebDeps extends HostEnv {
   DB: D1Database;
   notifier: Notifier;
+  /** ONE_HUMAN=1: every seat is the same person, so each seat's page shows and answers any seat's card. */
+  oneHuman?: boolean;
   /** Telegram binding link, when the bot is configured. */
   bindUrl?: (userId: string) => Promise<string>;
 }
@@ -782,6 +784,146 @@ function movesBlock(loaded: LoadedRoom, readOnly: boolean, them: string | null):
   <ol>${items.join("")}</ol></section>`;
 }
 
+/** Status words a person reads, and the order they read them in. */
+const STATUS_WORD: Record<string, string> = {
+  disputed: "differ",
+  open: "open",
+  proposed: "proposed",
+  agreed: "agreed",
+};
+const STATUS_ORDER = ["disputed", "open", "proposed", "agreed"];
+
+/**
+ * A reconciliation (topic, findings, conclusion) laid out like a review: the
+ * conclusion and the points on the left, the person's call on the right with
+ * who is talking and how it went. Only for the page of a person behind an
+ * agent; null for any other room, which keeps the usual page.
+ */
+async function reviewRoom(
+  deps: WebDeps,
+  loaded: LoadedRoom,
+  asked: db.PendingMove | null,
+  them: db.Shown | null,
+  error?: string,
+): Promise<string | null> {
+  const terms = termsOnTable(loaded.history);
+  const subject = terms?.subject;
+  if (!subject || typeof subject.topic !== "string" || !Array.isArray(subject.findings))
+    return null;
+  const findings = subject.findings.map(parseFinding);
+  if (!findings.length || findings.some((f) => f === null)) return null;
+  const parsed = findings as NonNullable<(typeof findings)[number]>[];
+  const { room, me } = loaded;
+  const done = isTerminal(room.state);
+
+  const conclusion = typeof subject.conclusion === "string" ? subject.conclusion.trim() : "";
+  const counts = new Map<string, number>();
+  for (const f of parsed) counts.set(f.status, (counts.get(f.status) ?? 0) + 1);
+  const chips = STATUS_ORDER.filter((s) => counts.has(s))
+    .map((s) => `<span class="chip ${s}">${counts.get(s)} ${STATUS_WORD[s]}</span>`)
+    .join("");
+  const rank = (s: string) => STATUS_ORDER.indexOf(s);
+  const rows = [...parsed]
+    .sort((a, b) => rank(a.status) - rank(b.status) || Number(a.n) - Number(b.n))
+    .map(
+      (
+        f,
+      ) => `<li class="${escapeHtml(f.status)}"><span class="fid">F${escapeHtml(f.n)} ${escapeHtml(STATUS_WORD[f.status] ?? f.status)}</span>
+  <span class="claim">${escapeHtml(f.claim)}</span>${f.reason ? `<span class="why">${escapeHtml(f.reason)}</span>` : ""}</li>`,
+    )
+    .join("");
+  const steps = Array.isArray(subject.next_steps)
+    ? subject.next_steps.filter((s): s is string => typeof s === "string")
+    : [];
+
+  // Your call: the parked move with its buttons, else where things stand.
+  let call: string;
+  if (asked) {
+    const owner = loaded.parties.find((p) => p.id === asked.participant_id) ?? me;
+    const card = await cardForPending(deps.DB, asked, owner.user_id, new Date());
+    const msg = cardMessage(card);
+    const yes = msg.reply_markup.inline_keyboard[0]?.[0];
+    if (deps.oneHuman && asked.verdict === "approve" && yes)
+      yes.text = "✅ Agree for both sessions";
+    call = cardHtml(card, msg);
+  } else if (room.state === "agreed") {
+    call = `<section class="card-ask settled"><p class="eyebrow">Agreed</p><p>Both sides hold this list. Nothing left to do.</p></section>`;
+  } else if (done) {
+    call = `<section class="card-ask settled"><p class="eyebrow">Closed</p><p>This room ended without an agreed list.</p></section>`;
+  } else {
+    call = `<section class="card-ask quiet"><p class="eyebrow">Your call</p><p>Nothing for you yet. The agents are still talking, and this page updates by itself.</p>
+<p><small>Something off? Tell your agent. It can change course or stop here.</small></p></section>`;
+  }
+
+  // Who's talking: the agents' own lines when they gave them, else the seats.
+  const sides = (Array.isArray(subject.sides) ? subject.sides : [subject.sides]).filter(
+    (s): s is string => typeof s === "string" && s.trim() !== "",
+  );
+  // One person on every seat: name the sessions by who opened the room.
+  const seat = (id: string) => {
+    if (deps.oneHuman) {
+      return loaded.parties.find((p) => p.id === id)?.role === "initiator"
+        ? "The session that opened"
+        : "The session that joined";
+    }
+    return id === me.id ? "Your agent" : escapeHtml(them?.name ?? "They");
+  };
+  const side = (id: string) =>
+    deps.oneHuman
+      ? loaded.parties.find((p) => p.id === id)?.role === "initiator"
+        ? "you"
+        : "them"
+      : id === me.id
+        ? "you"
+        : "them";
+  const who = sides.length
+    ? sides.map((s, i) => `<li class="${i % 2 ? "them" : "you"}">${escapeHtml(s)}</li>`).join("")
+    : loaded.parties.map((p) => `<li class="${side(p.id)}">${seat(p.id)}</li>`).join("");
+
+  const moves = loaded.history
+    .map((m) => {
+      const by = seat(m.from_id);
+      const counted = Array.isArray(m.subject?.findings) ? findingCounts(m.subject.findings) : null;
+      const ts = escapeHtml(m.ts);
+      return `<li class="${side(m.from_id)}"><time datetime="${ts}" data-clock>${ts}</time> ${by} ${VERBS[m.verdict] ?? escapeHtml(m.verdict)}${counted ? `<small>${escapeHtml(counted)}</small>` : ""}</li>`;
+    })
+    .join("");
+
+  const version = await roomVersion(deps.DB, room.id);
+  return `<div class="review" data-v="${version}" data-wait="${done ? 0 : 1}">
+<section class="review-main">
+  <p class="topic">${escapeHtml(subject.topic)}</p>
+  <h1>${conclusion ? escapeHtml(conclusion) : "No conclusion yet."}</h1>
+  ${error ? `<p class="notice">${escapeHtml(error)}</p>` : ""}
+  <div class="chips">${chips}</div>
+  <ol class="points">${rows}</ol>
+  ${steps.length ? `<h2>Next</h2><ul class="next">${steps.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>` : ""}
+</section>
+<aside class="review-side">
+  ${call}
+  <section><p class="eyebrow">Who's talking</p><ul class="who">${who}</ul></section>
+  <section><p class="eyebrow">How it went · ${roomLabel(room.id)}</p><ol class="went">${moves}</ol></section>
+  ${done ? "" : `<p><small>This is your personal link. Anyone who has it can answer for you.</small></p>`}
+</aside>
+</div>`;
+}
+
+/** The review page refreshes itself: it fetches the page and swaps it in when the room changed. */
+const REVIEW_LIVE_SCRIPT = `<script>
+(() => {
+  const tick = async () => {
+    const o = document.querySelector(".review");
+    if (!o || o.dataset.wait !== "1" || document.activeElement?.closest("form")) return;
+    try {
+      const html = await (await fetch(location.href, { headers: { Accept: "text/html" } })).text();
+      const n = new DOMParser().parseFromString(html, "text/html").querySelector(".review");
+      if (n && n.dataset.v !== o.dataset.v) { o.replaceWith(n); window.localTimes?.(n); }
+    } catch {}
+  };
+  setInterval(tick, 4000);
+})();
+</script>`;
+
 /**
  * ISO times in the reader's own time zone; an end on the same day shows only
  * its time, and a move's time (data-clock) only the clock. A function, so the
@@ -844,7 +986,27 @@ async function showRoom(
   const them_ = them?.name ?? "them";
 
   // A move the agent parked for this person: the page is theirs to answer.
-  const asked = readOnly && !done ? await db.getOpenPendingMove(deps.DB, room.id, me.id) : null;
+  // One person on every seat: any seat's card shows here, so both pages are the same page.
+  const asked =
+    readOnly && !done
+      ? deps.oneHuman
+        ? await db.getOpenPendingMoveInRoom(deps.DB, room.id)
+        : await db.getOpenPendingMove(deps.DB, room.id, me.id)
+      : null;
+
+  // A reconciliation reads as a review: conclusion and points, then the call.
+  if (readOnly) {
+    const review = await reviewRoom(deps, loaded, asked, them, error);
+    if (review) {
+      return htmlResponse(
+        page(roomName(room.id).name, `${review}${LOCAL_TIME_SCRIPT}${REVIEW_LIVE_SCRIPT}`, {
+          refreshSeconds: done ? undefined : 30,
+          bodyClass: "wide",
+        }),
+        error ? 422 : 200,
+      );
+    }
+  }
 
   // Headlines follow DESIGN.md: two lines, the second italic.
   const [title, lede, status]: [string, string, string] = asked
@@ -963,8 +1125,14 @@ async function showRoom(
   const side: string[] = [];
   // The move the agent parked for this person: its card first, with the buttons.
   if (asked) {
-    const card = await cardForPending(deps.DB, asked, link.user_id, new Date());
-    side.push(cardHtml(card, cardMessage(card)));
+    const owner = loaded.parties.find((p) => p.id === asked.participant_id) ?? me;
+    const card = await cardForPending(deps.DB, asked, owner.user_id, new Date());
+    const msg = cardMessage(card);
+    // One yes for every seat: the button says so.
+    const yes = msg.reply_markup.inline_keyboard[0]?.[0];
+    if (deps.oneHuman && asked.verdict === "approve" && yes)
+      yes.text = "✅ Agree for both sessions";
+    side.push(cardHtml(card, msg));
   }
   side.push(termsHtml);
   const kind = readOnly ? "r" : "p";
@@ -1078,10 +1246,10 @@ async function answerCard(deps: WebDeps, link: db.WebLink, request: Request): Pr
   let result: { status: string; reason?: string };
   try {
     if (decision === "confirm" || decision === "decline") {
-      result = await resolveHumanMove(deps.DB, link.user_id, pending, decision, now);
+      result = await resolveHumanMove(deps.DB, link.user_id, pending, decision, now, deps.oneHuman);
     } else if (decision === "instead") {
       const option = Number(form.get("option"));
-      result = await counterInstead(deps.DB, link.user_id, pending, option, now);
+      result = await counterInstead(deps.DB, link.user_id, pending, option, now, deps.oneHuman);
     } else {
       return json
         ? Response.json({ error: "unknown decision" }, { status: 400 })

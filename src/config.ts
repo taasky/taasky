@@ -17,6 +17,12 @@ export interface Config {
    */
   confirmations: "web" | "telegram";
   telegramBotToken?: string;
+  /**
+   * Every seat in a room is the same person: one page and one yes serve them
+   * all. Set by `taasky local`. Loopback only: on a shared node, whoever holds
+   * one seat's link could answer for every seat.
+   */
+  oneHuman: boolean;
   authPerMinute: number;
   mcpPerMinute: number;
   tickMs: number;
@@ -29,6 +35,10 @@ export function config(env: NodeJS.ProcessEnv): Config {
   const devMode = env.TAASKY_DEV_MODE === "1";
   if (devMode && host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
     throw new Error("TAASKY_DEV_MODE=1 lets anyone act as any user: bind HOST to loopback, or turn it off");
+  }
+  const oneHuman = env.TAASKY_ONE_HUMAN === "1";
+  if (oneHuman && host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
+    throw new Error("TAASKY_ONE_HUMAN=1 lets one seat answer for every seat: bind HOST to loopback, or turn it off");
   }
   const confirmations = env.TAASKY_CONFIRMATIONS ?? "web";
   if (confirmations !== "web" && confirmations !== "telegram") {
@@ -46,6 +56,7 @@ export function config(env: NodeJS.ProcessEnv): Config {
     devMode,
     confirmations,
     telegramBotToken: env.TELEGRAM_BOT_TOKEN || undefined,
+    oneHuman,
     authPerMinute: Number(env.TAASKY_AUTH_PER_MINUTE ?? 30),
     mcpPerMinute: Number(env.TAASKY_MCP_PER_MINUTE ?? 120),
     tickMs: Number(env.TAASKY_TICK_MS ?? 3600_000),

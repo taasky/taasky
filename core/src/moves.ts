@@ -132,6 +132,10 @@ export function assertWithinLimits(
 /**
  * Plans and records a move for `loaded.me`. approve / reject / cancel are
  * refused unless `releasedByHuman` — only resolveHumanMove passes it (§8).
+ *
+ * `oneHuman`: every seat in the room is the same person (a node on their own
+ * machine, ONE_HUMAN=1). Their yes to a list then stands for every seat, so
+ * any seat's standing approval agrees the room, not only its author's.
  */
 export interface MoveResult {
   msg: string;
@@ -149,6 +153,7 @@ export async function playMove(
   req: { verdict: Verdict; subject?: unknown; subject_hash?: string; deadline?: string | null },
   now: Date,
   releasedByHuman = false,
+  oneHuman = false,
 ): Promise<MoveResult> {
   if (isHumanGated(req.verdict) && !releasedByHuman) {
     throw new MoveError(`${req.verdict} needs your human's confirmation`);
@@ -180,7 +185,7 @@ export async function playMove(
     plan.next.state === "awaiting" &&
     waiting?.standing_hash &&
     waiting.standing_hash === plan.message.subject_hash &&
-    termsOnTable(loaded.history)?.from_id === waiting.id
+    (oneHuman || termsOnTable(loaded.history)?.from_id === waiting.id)
   ) {
     const theirs = await loadRoom(d1, loaded.room.id, waiting.user_id, now);
     const agreed = await playMove(
@@ -189,6 +194,7 @@ export async function playMove(
       { verdict: "approve", subject_hash: waiting.standing_hash },
       now,
       true,
+      oneHuman,
     );
     return { ...agreed, your_turn: false };
   }
@@ -411,6 +417,30 @@ export async function requestHumanMove(
   return { card, delivery };
 }
 
+/**
+ * One-human mode: an approve of the list this seat's person already said yes
+ * to on another seat's page goes out now, with no second card. Null when it
+ * still needs asking.
+ */
+export async function approveStanding(
+  d1: D1Database,
+  loaded: LoadedRoom,
+  req: { verdict: HumanGatedVerdict; subject_hash?: string },
+  now: Date,
+  oneHuman: boolean,
+): Promise<MoveResult | null> {
+  if (!oneHuman || req.verdict !== "approve" || !req.subject_hash) return null;
+  if (loaded.me.standing_hash !== req.subject_hash) return null;
+  return playMove(
+    d1,
+    loaded,
+    { verdict: "approve", subject_hash: req.subject_hash },
+    now,
+    true,
+    true,
+  );
+}
+
 /** The card for a move parked earlier, rendered from the room as it is now. */
 export async function cardForPending(
   d1: D1Database,
@@ -433,11 +463,11 @@ export async function resolveHumanMove(
   pendingMoveId: string,
   decision: "confirm" | "decline",
   now: Date,
+  oneHuman = false,
 ) {
   const pending = await db.getPendingMove(d1, pendingMoveId);
   if (!pending) throw new MoveError("no such pending move");
-  const loaded = await loadRoom(d1, pending.room_id, userId, now);
-  if (loaded.me.id !== pending.participant_id) throw new MoveError("not your pending move");
+  const loaded = await loadForPending(d1, pending, userId, now, oneHuman);
   if (pending.status !== "pending") throw new MoveError(`this move is already ${pending.status}`);
 
   const at = now.toISOString();
@@ -458,10 +488,14 @@ export async function resolveHumanMove(
   ) {
     await db.setStandingApproval(d1, loaded.me.id, pending.subject_hash);
     await db.resolvePendingMove(d1, pending.id, "released", at);
+    const state =
+      oneHuman && pending.subject_hash
+        ? await oneYesForAll(d1, loaded.room.id, loaded.me.id, pending.subject_hash, now)
+        : null;
     return {
       status: "released" as const,
       standing: true,
-      state: loaded.room.state,
+      state: state ?? loaded.room.state,
       round: loaded.room.round,
       your_turn: false,
     };
@@ -475,6 +509,7 @@ export async function resolveHumanMove(
       { verdict: pending.verdict, subject_hash: pending.subject_hash ?? undefined },
       now,
       true,
+      oneHuman,
     );
   } catch (e) {
     if (e instanceof MoveError) {
@@ -484,7 +519,63 @@ export async function resolveHumanMove(
     throw e;
   }
   await db.resolvePendingMove(d1, pending.id, "released", at);
+  // Only a yes carries over: reject and cancel stay with the seat that asked.
+  if (
+    oneHuman &&
+    pending.verdict === "approve" &&
+    result.state !== "agreed" &&
+    result.subject_hash
+  ) {
+    const state = await oneYesForAll(d1, loaded.room.id, loaded.me.id, result.subject_hash, now);
+    if (state) return { status: "released" as const, ...result, state, your_turn: false };
+  }
   return { status: "released" as const, ...result };
+}
+
+/**
+ * The room as the seat that parked `pending` sees it. In one-human mode the
+ * person may answer from any seat's page: holding a seat in the room is
+ * enough, and the move is still played as the seat that asked.
+ */
+async function loadForPending(
+  d1: D1Database,
+  pending: db.PendingMove,
+  userId: string,
+  now: Date,
+  oneHuman: boolean,
+): Promise<LoadedRoom> {
+  const loaded = await loadRoom(d1, pending.room_id, userId, now);
+  if (loaded.me.id === pending.participant_id) return loaded;
+  const owner = oneHuman && loaded.parties.find((p) => p.id === pending.participant_id);
+  if (!owner) throw new MoveError("not your pending move");
+  return loadRoom(d1, pending.room_id, owner.user_id, now);
+}
+
+/**
+ * One-human mode: the person's yes to the list with `hash`, given on one
+ * seat's page, stands for every other seat too. Each gets a standing approval,
+ * so its agent's own approve goes straight through without a second card; an
+ * approve of that list already parked there is released now. Returns the
+ * room's state if that release moved it.
+ */
+async function oneYesForAll(
+  d1: D1Database,
+  roomId: string,
+  fromId: string,
+  hash: string,
+  now: Date,
+): Promise<RoomState | null> {
+  let state: RoomState | null = null;
+  for (const other of await db.getParticipants(d1, roomId)) {
+    if (other.id === fromId) continue;
+    await db.setStandingApproval(d1, other.id, hash);
+    const parked = await db.getOpenPendingMove(d1, roomId, other.id);
+    if (parked?.verdict === "approve" && parked.subject_hash === hash) {
+      const released = await resolveHumanMove(d1, other.user_id, parked.id, "confirm", now, true);
+      if (released.status === "released") state = released.state;
+    }
+  }
+  return state;
 }
 
 /**
@@ -498,11 +589,11 @@ export async function counterInstead(
   pendingMoveId: string,
   index: number,
   now: Date,
+  oneHuman = false,
 ) {
   const pending = await db.getPendingMove(d1, pendingMoveId);
   if (!pending) throw new MoveError("no such pending move");
-  const loaded = await loadRoom(d1, pending.room_id, userId, now);
-  if (loaded.me.id !== pending.participant_id) throw new MoveError("not your pending move");
+  const loaded = await loadForPending(d1, pending, userId, now, oneHuman);
   if (pending.status !== "pending") throw new MoveError(`this move is already ${pending.status}`);
   if (pending.verdict !== "approve")
     throw new MoveError("only an accept can be swapped for a counter");

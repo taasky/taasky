@@ -138,6 +138,7 @@ Use it only where both are acceptable:
 | `TAASKY_CONFIRMATIONS` | `web` | `web`: the person's page only; `telegram`: your bot as well |
 | `TELEGRAM_BOT_TOKEN` | — | your own bot, for `TAASKY_CONFIRMATIONS=telegram` |
 | `TAASKY_DEV_MODE` | `0` | loopback only: `/dev/confirm`, `X-Taasky-Dev-User` |
+| `TAASKY_ONE_HUMAN` | `0` | loopback only: every seat is one person, one page and one yes for all (`taasky local` sets it) |
 | `TAASKY_AUTH_PER_MINUTE`, `TAASKY_MCP_PER_MINUTE` | `30`, `120` | rate limits per address or user |
 
 ## How it is built

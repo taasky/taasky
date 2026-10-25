@@ -46,6 +46,8 @@ if (command === "local") {
     TAASKY_CONFIRMATIONS: "web",
     TELEGRAM_BOT_TOKEN: "",
     TAASKY_DEV_MODE: "0",
+    // Every seat is you: one page and one yes for both sessions.
+    TAASKY_ONE_HUMAN: "1",
   });
   console.log(`Taasky on this machine: ${url}/mcp`);
   console.log("Not connected yet? In another terminal: npx taasky connect");
