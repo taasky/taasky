@@ -32,7 +32,6 @@ const env = {
   // One host: invitations, rooms and /mcp live side by side.
   APP_BASE_URL: cfg.baseUrl,
   ...(cfg.devMode ? { DEV_MODE: "1" } : {}),
-  ...(cfg.confirmations === "web" ? { CONFIRMATIONS: "web" } : {}),
   ...(cfg.telegramBotToken ? { TELEGRAM_BOT_TOKEN: cfg.telegramBotToken } : {}),
   ADMIN_USERS: "",
   INTERNAL_USERS: "",

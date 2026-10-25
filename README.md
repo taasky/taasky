@@ -23,6 +23,22 @@ In the protocol this is the *B2B internal* deployment track
 ([core/PROTOCOL.md](core/PROTOCOL.md) §2). The protocol itself is open:
 [taasky/protocol](https://github.com/taasky/protocol).
 
+## On your own machine
+
+For your own sessions: Claude Code and Codex on the same repo, a worktree
+session and the one already open. The node listens on loopback only, keeps
+one SQLite file in `~/.taasky`, and nothing leaves the machine.
+
+```sh
+npm ci && npm run build
+node bin/taasky-node.mjs local      # http://localhost:8790/mcp
+node bin/taasky-node.mjs connect    # adds it to Claude Code and Codex as taasky-local
+```
+
+`connect` runs `claude mcp add --scope user` and `codex mcp add`, so every new
+session sees `taasky-local`. Sessions already open pick it up after a restart.
+You confirm on your own page of the room (`human_url`), one per session.
+
 ## Run it
 
 Node.js 24 or later.
@@ -37,7 +53,6 @@ The node serves:
 
 - `/mcp` for agents;
 - `/i/…` invitation pages and `/p/…`, `/r/…` room pages for people;
-- `/c/…` confirmation cards.
 
 `npm run dev` turns on `TAASKY_DEV_MODE`: an agent can act as any user with
 the `X-Taasky-Dev-User` header, and `POST /dev/confirm/<pending_id>` confirms
@@ -69,7 +84,7 @@ codex mcp add taasky --url https://taasky.internal.example.com/mcp
 
 The skills come from [taasky/plugin](https://github.com/taasky/plugin):
 
-- `taasky-align` is for Common ground;
+- `common-ground` is for Common ground;
 - `taasky` holds the rooms, turns and confirmations both skills share.
 
 The plugin's own `mcp.json` points at mcp.taasky.ai. On a node, either
@@ -82,24 +97,19 @@ token for each room, and every later call passes it.
 ## Confirmations
 
 The core does not ship any `approve` without a person's tap (PROTOCOL.md §8).
-On a node the person taps on a **web card**:
+Each person has one page per room, `human_url`, and the card waits there:
 
 1. The agent asks to approve, reject or withdraw. The node parks the move and
-   returns `confirm_url` next to the card.
+   returns `human_url`.
 2. The agent hands its person the link, in whatever chat they share.
-3. The person opens it inside the perimeter, reads the card and answers:
-   confirm, don't, or one of the counters the card offers instead.
+3. The person opens it inside the perimeter, reads the card and answers.
 
-A link answers one parked move. The node keeps only its hash, and once the
-move is answered, withdrawn or overtaken, the link only says how it ended.
-Whoever holds the link can answer, so it should go to its person alone. Until
-the node knows who opens a page (identity, [docs/ROADMAP.md](docs/ROADMAP.md)),
-the link is the whole credential.
+Whoever holds the link can answer for that seat, so it goes to its person
+alone. Until the node knows who opens a page (identity,
+[docs/ROADMAP.md](docs/ROADMAP.md)), the link is the whole credential. The
+page has no push: the agent sends the link with every confirmation.
 
-The web card has no push. Nobody is told that a card is waiting except by the
-agent, which sends the link with every confirmation.
-
-**Telegram instead** (`TAASKY_CONFIRMATIONS=telegram`) gives push and buttons
+**Telegram as well** (`TAASKY_CONFIRMATIONS=telegram`) adds push and buttons
 in the chat, and breaks the node's promise in two ways:
 
 - **The card leaves your perimeter.** Telegram carries the card's text: the
@@ -122,7 +132,7 @@ Use it only where both are acceptable:
 | `PORT`, `HOST` | `8790`, `127.0.0.1` | |
 | `TAASKY_DB` | `taasky.sqlite` | one SQLite file, WAL |
 | `TAASKY_TRUST_PROXY` | `0` | take the client address from `X-Forwarded-For` |
-| `TAASKY_CONFIRMATIONS` | `web` | `web`: cards on the node's pages; `telegram`: your bot |
+| `TAASKY_CONFIRMATIONS` | `web` | `web`: the person's page only; `telegram`: your bot as well |
 | `TELEGRAM_BOT_TOKEN` | — | your own bot, for `TAASKY_CONFIRMATIONS=telegram` |
 | `TAASKY_DEV_MODE` | `0` | loopback only: `/dev/confirm`, `X-Taasky-Dev-User` |
 | `TAASKY_AUTH_PER_MINUTE`, `TAASKY_MCP_PER_MINUTE` | `30`, `120` | rate limits per address or user |

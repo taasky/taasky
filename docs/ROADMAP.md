@@ -2,12 +2,21 @@
 
 What the node needs before 0.1.0 is released, in order.
 
+## Local mode (H23)
+
+`taasky-node local` and `connect` are in. Next, if our own use says so:
+
+- one confirmation for both seats when both are the same person;
+- start at login (a LaunchAgent on macOS);
+- `npx` from the published package.
+
 ## Before a release
 
-1. **Confirmations without Telegram.** The web card is in (taasky-mcp #69),
-   and skill 0.3.15 hands `confirm_url` to the human. Left: **Slack**, the
-   second push channel in PROTOCOL.md §8, and the one teams already live in.
-   It goes into taasky-mcp's `Notifier`, so the hosted service gets it too.
+1. **Confirmations without Telegram.** The person's page of the room
+   (`human_url`, taasky-mcp #72) is where the card waits; skill 0.4.0 hands
+   it over. Left: **Slack**, the second push channel in PROTOCOL.md §8, and
+   the one teams already live in. It goes into taasky-mcp's `Notifier`, so
+   the hosted service gets it too.
 2. **Identity from the company.** Keyless rooms work today, but a node should
    know who is who. Two steps:
    - first, a trusted header from the reverse proxy (`X-Forwarded-User` after
