@@ -19,6 +19,7 @@ import {
 } from "./ids.js";
 import {
   ANSWERED,
+  approveStanding,
   assertWithinLimits,
   INVITE_EXPIRED,
   joinRoom,
@@ -54,6 +55,12 @@ export interface Env extends HostEnv {
   DB: D1Database;
   /** "1" only under `wrangler dev`. Gates the dev identity header and confirm route. */
   DEV_MODE?: string;
+  /**
+   * "1" on a node on someone's own machine (`taasky local`): every seat in a
+   * room is the same person, so one page and one yes serve them all. Never on
+   * a server other people reach: whoever holds one seat could answer for all.
+   */
+  ONE_HUMAN?: string;
 }
 
 const INVITE_TTL_HOURS = 72;
@@ -1073,6 +1080,25 @@ export function createServer(
       const { userId, roomId: id } = await seat(args);
       const now = new Date();
       const loaded = await loadRoom(env.DB, id, userId, now);
+      // One person, several seats: they already said yes to this list on another
+      // seat's page, so this approve needs no second card.
+      const moved = await approveStanding(env.DB, loaded, req, now, env.ONE_HUMAN === "1");
+      if (moved) {
+        await notifier.roomChanged(id, userId);
+        return ok({
+          room: id,
+          status: "released",
+          ...moved,
+          for_your_human:
+            moved.state === "agreed"
+              ? "Agreed. You said yes to this list on the other session's page, so nothing more to confirm."
+              : "Approved: you already said yes to this list on the other session's page.",
+          next:
+            moved.state === "agreed"
+              ? "The room is agreed. Tell your human in one line; they confirmed already."
+              : "Check back with negotiation_read.",
+        });
+      }
       const { card, delivery } = await requestHumanMove(env.DB, notifier, loaded, req, now);
       return ok({
         status: "pending_human",
