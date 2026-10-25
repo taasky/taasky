@@ -50,7 +50,7 @@ if (command === "local") {
     TAASKY_ONE_HUMAN: "1",
   });
   console.log(`Taasky on this machine: ${url}/mcp`);
-  console.log("Not connected yet? In another terminal: npx taasky connect");
+  console.log("Not connected yet? In another terminal: npx @taasky/taasky connect");
   await import("../dist/main.js");
 } else if (command === "connect") {
   const mcp = `${url}/mcp`;

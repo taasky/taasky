@@ -2,9 +2,9 @@
 
 ## 0.1.0
 
-- Published to npm as `taasky`. `npx taasky local` runs Taasky on your own
-  machine for your own sessions; `npx taasky connect` adds it to Claude Code
-  and Codex as `taasky-local`.
+- Published to npm as `@taasky/taasky`. `npx @taasky/taasky local` runs
+  Taasky on your own machine for your own sessions; `npx @taasky/taasky
+  connect` adds it to Claude Code and Codex as `taasky-local`.
 - The person's page of the room (`human_url`) replaces the web card: the
   conclusion on top, the findings folded below.
 - Font licences ship in `licenses/`.
