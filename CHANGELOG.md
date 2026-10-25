@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Local mode: `/mcp` ignores a token left from an earlier node on this
+  machine. Before, the client got a 401 and opened a sign-in window for
+  localhost.
+
 ## 0.1.0
 
 - Published to npm as `@taasky/taasky`. `npx @taasky/taasky local` runs
