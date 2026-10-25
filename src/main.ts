@@ -32,6 +32,7 @@ const env = {
   // One host: invitations, rooms and /mcp live side by side.
   APP_BASE_URL: cfg.baseUrl,
   ...(cfg.devMode ? { DEV_MODE: "1" } : {}),
+  ...(cfg.oneHuman ? { ONE_HUMAN: "1" } : {}),
   ...(cfg.telegramBotToken ? { TELEGRAM_BOT_TOKEN: cfg.telegramBotToken } : {}),
   ADMIN_USERS: "",
   INTERNAL_USERS: "",
@@ -101,7 +102,7 @@ async function tick() {
 const timer = setInterval(tick, cfg.tickMs);
 
 server.listen(cfg.port, cfg.host, () => {
-  console.log(JSON.stringify({ event: "listening", url: cfg.baseUrl, mcp: `${cfg.baseUrl}/mcp`, db: cfg.dbFile, dev: cfg.devMode, confirmations: cfg.confirmations }));
+  console.log(JSON.stringify({ event: "listening", url: cfg.baseUrl, mcp: `${cfg.baseUrl}/mcp`, db: cfg.dbFile, dev: cfg.devMode, confirmations: cfg.confirmations, oneHuman: cfg.oneHuman }));
 });
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
