@@ -1,7 +1,8 @@
-// Local mode: /mcp stays keyless whatever token a client still sends.
+// Local mode: /mcp stays keyless whatever token a client still sends,
+// and nothing tells a client to sign in.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dropStaleToken } from "../src/local.ts";
+import { dropStaleToken, hidesOAuth } from "../src/local.ts";
 
 const auth = () => new Headers({ authorization: "Bearer from-an-earlier-node" });
 
@@ -21,4 +22,15 @@ test("a shared node keeps it everywhere", () => {
   const h = auth();
   dropStaleToken("/mcp", h, false);
   assert.equal(h.get("authorization"), "Bearer from-an-earlier-node");
+});
+
+test("local mode hides OAuth discovery", () => {
+  assert.equal(hidesOAuth("/.well-known/oauth-protected-resource/mcp", true), true);
+  assert.equal(hidesOAuth("/.well-known/oauth-authorization-server", true), true);
+  assert.equal(hidesOAuth("/mcp", true), false);
+});
+
+test("a shared node keeps OAuth discovery", () => {
+  assert.equal(hidesOAuth("/.well-known/oauth-protected-resource/mcp", false), false);
+  assert.equal(hidesOAuth("/.well-known/oauth-authorization-server", false), false);
 });

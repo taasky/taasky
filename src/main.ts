@@ -12,7 +12,7 @@ import { config } from "./config.js";
 import { SqliteD1 } from "./d1.js";
 import { SqliteKV } from "./kv.js";
 import { Limiter } from "./limiter.js";
-import { dropStaleToken } from "./local.js";
+import { dropStaleToken, hidesOAuth } from "./local.js";
 import { serveStatic } from "./static.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -49,8 +49,7 @@ function context() {
   };
 }
 
-async function toRequest(req: IncomingMessage): Promise<Request> {
-  const url = new URL(req.url ?? "/", cfg.baseUrl);
+async function toRequest(req: IncomingMessage, url: URL): Promise<Request> {
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) {
     if (v === undefined) continue;
@@ -82,7 +81,9 @@ async function send(res: ServerResponse, r: Response) {
 
 const server = createServer(async (req, res) => {
   try {
-    const request = await toRequest(req);
+    const url = new URL(req.url ?? "/", cfg.baseUrl);
+    if (hidesOAuth(url.pathname, cfg.oneHuman)) return await send(res, new Response("Not found", { status: 404 }));
+    const request = await toRequest(req, url);
     const asset = await serveStatic(join(root, "core/public"), request);
     await send(res, asset ?? (await worker.fetch(request, env as never, context() as never)));
   } catch (e) {
