@@ -54,6 +54,8 @@ const STYLE = `
   /* The header: night, 74px, sticky, a hairline under it. */
   .top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--night-rule);
          background: color-mix(in oklab, var(--night) 82%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .local-mode { background: #ffd23f; color: #1d1600; text-align: center; font-size: 15px; line-height: 1.4; padding: .55rem 1rem; }
+  .local-mode b { letter-spacing: .08em; margin-right: .6rem; }
   .top .wrap { height: 74px; display: flex; align-items: center; justify-content: space-between; }
   a.brand { display: flex; align-items: center; gap: .7rem; color: var(--moon); text-decoration: none; font-size: 1.15rem; letter-spacing: -.01em; }
   main { flex: 1; padding-top: clamp(3rem, 8vh, 6rem); padding-bottom: clamp(4rem, 10vh, 6rem); }
@@ -584,6 +586,18 @@ export function plate(src: string, alt: string, figure: string, caption: string)
   <figcaption><span>${escapeHtml(figure)}</span><span>${escapeHtml(caption)}</span></figcaption></figure>`;
 }
 
+let localMode = false;
+
+/**
+ * `taasky local`: one person, no Telegram, no analytics, on loopback. Set from
+ * the environment on every request; every page then says so up top.
+ */
+export function setLocalMode(on: boolean): void {
+  localMode = on;
+}
+
+const LOCAL_BANNER = `<div class="local-mode"><b>LOCAL MODE</b>Nothing goes to a server: your rooms stay in a file on this computer.</div>`;
+
 export function page(title: string, body: string, opts: PageOptions = {}): string {
   const refresh = opts.refreshSeconds
     ? `<noscript><meta http-equiv="refresh" content="${opts.refreshSeconds}"></noscript>`
@@ -595,7 +609,7 @@ export function page(title: string, body: string, opts: PageOptions = {}): strin
 <link rel="preload" href="/fonts/InstrumentSerif.woff2" as="font" type="font/woff2" crossorigin>
 <title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
 <body${opts.bodyClass ? ` class="${opts.bodyClass}"` : ""}><div class="sheet">
-<header class="top"><div class="wrap"><a class="brand" href="https://taasky.ai">${LOGO}<span>Taasky</span></a>
+<header class="top">${localMode ? LOCAL_BANNER : ""}<div class="wrap"><a class="brand" href="https://taasky.ai">${LOGO}<span>Taasky</span></a>
 <a class="button inline" href="https://taasky.ai" style="height:2.5rem;padding:0 1.2rem;font-size:14px">What is Taasky?</a></div></header>
 <main class="wrap${opts.narrow ? " narrow" : ""}">${body}</main>
 <footer><div class="wrap"><span>Your agent settles things with anyone. You say yes.</span><span class="links"><a href="https://taasky.ai/terms/">Terms</a><a href="https://taasky.ai/privacy/">Privacy</a><a href="https://taasky.ai">taasky.ai</a></span></div></footer>

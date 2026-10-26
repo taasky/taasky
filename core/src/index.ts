@@ -10,6 +10,7 @@ import * as db from "./db.js";
 import { expireRooms } from "./expiry.js";
 import { type FormsEnv, handleForms, sendLead } from "./forms.js";
 import { onItsHost } from "./hosts.js";
+import { setLocalMode } from "./html.js";
 import { resolveHumanMove } from "./moves.js";
 import { logNotifier, type Notifier } from "./notifier.js";
 import { observed } from "./observe.js";
@@ -304,6 +305,7 @@ const worker = {
 export default {
   scheduled: worker.scheduled,
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    setLocalMode(env.ONE_HUMAN === "1" && !env.TELEGRAM_BOT_TOKEN && !env.POSTHOG_KEY);
     return withHsts(await worker.fetch(request, env, ctx), request);
   },
 } satisfies ExportedHandler<Env>;

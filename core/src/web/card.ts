@@ -23,7 +23,15 @@ const webTimes = (html: string) =>
       `<time datetime="${new Date(Number(unix) * 1000).toISOString()}">${text}</time>`,
   );
 
-export function cardHtml(card: ConfirmationCard, msg: ReturnType<typeof cardMessage>): string {
+/**
+ * `inTelegram`: the human connected Telegram, so only its buttons answer. The
+ * page link is a bearer key their agent holds too, so the card here has none.
+ */
+export function cardHtml(
+  card: ConfirmationCard,
+  msg: ReturnType<typeof cardMessage>,
+  inTelegram = false,
+): string {
   const parts = [`<p>${msg.text.split("\n")[1] ?? ""}</p>`];
   const broken = (card.terms?.fields ?? []).flatMap((f) =>
     (f.breaches ?? []).map(
@@ -49,6 +57,11 @@ export function cardHtml(card: ConfirmationCard, msg: ReturnType<typeof cardMess
     parts.push(
       `<p>${instead.length === 1 ? "Or propose instead:" : "Or propose one of these instead:"}</p><ul>${items.join("")}</ul>`,
     );
+  }
+  if (inTelegram) {
+    return webTimes(`<section class="card-ask" id="confirm"><p class="eyebrow">Waiting for your yes in Telegram</p>${parts.join("")}
+<p>Answer in your Telegram chat with Taasky. Only you can answer there, so this page has no buttons.</p>
+<p><small>Your agent asked for this. Nothing is sent until you answer.</small></p></section>`);
   }
   const buttons = msg.reply_markup.inline_keyboard.flat().flatMap((b) => {
     if ("url" in b) return [];

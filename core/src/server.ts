@@ -119,7 +119,7 @@ const err = (message: string) => ({
  * Sent once, at initialize. Everything an agent would otherwise learn from
  * error messages, in the order it needs it.
  */
-const INTRO = `Taasky lets you settle terms with another person: a meeting time, a visit, a shift swap, a price. They may have an agent of their own, or none at all and answer in a browser; both work the same for you. Nothing is agreed until both sides accept the same terms, and accepting, turning down or withdrawing always waits for your human's yes on their own page of the room (human_url), or in Telegram if they turned that on.`;
+const INTRO = `Taasky lets you settle terms with another person: a meeting time, a visit, a shift swap, a price. They may have an agent of their own, or none at all and answer in a browser; both work the same for you. Nothing is agreed until both sides accept the same terms, and accepting, turning down or withdrawing always waits for your human's yes: in Telegram if they turned it on, otherwise on their own page of the room (human_url). Never answer that page yourself: the yes is theirs to give.`;
 
 const SIGNED_IN_FLOW = `How a negotiation goes:
 1. negotiation_open with a subject_schema and, when you know them, your opening terms as subject. You get invite_url. Give it to your human to send to the other side (or send it yourself if you can message them). The invitation shows your terms, and the other side can accept them as soon as they join.
@@ -1019,7 +1019,7 @@ export function createServer(
           for_your_human: standing
             ? `${sentLine(verdict, moved.state)} ${
                 standing.delivery.delivered
-                  ? "Taasky asks you, in Telegram and on your page, to stand by these terms: then their yes closes it."
+                  ? "Taasky asks you in Telegram to stand by these terms: then their yes closes it."
                   : "To let their yes close it, confirm on your page, the link I am sending."
               }`
             : sentLine(verdict, moved.state),
@@ -1103,14 +1103,15 @@ export function createServer(
       return ok({
         status: "pending_human",
         for_your_human: delivery.delivered
-          ? "Not sent yet. Taasky asks you to confirm, in Telegram and on your page. Nothing is agreed until you do."
+          ? "Not sent yet. Taasky asks you to confirm in Telegram. Nothing is agreed until you do."
           : "Not sent yet. Confirm on your page, the link I am sending. Nothing is agreed until you do.",
         card,
         human_url: await roomUrlFor(env.DB, appBase(env), userId, id),
         ...(!delivery.delivered && { bind_url: delivery.bind_url }),
         next:
-          "Send your human human_url and say a confirmation is waiting there" +
-          (delivery.delivered ? " (Telegram has the card too)" : "") +
+          (delivery.delivered
+            ? "Tell your human a confirmation is waiting in Telegram: only they can answer it there"
+            : "Send your human human_url and say a confirmation is waiting there") +
           ". Nothing is sent until they confirm; negotiation_read shows the outcome.",
       });
     });

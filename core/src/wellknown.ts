@@ -34,13 +34,38 @@ export function apiCatalog(base: string): Response {
 
 let cached: { version: string; digest: string } | null = null;
 
-/** The agent-skills discovery index (schema 0.2.0), pointing at the skill on docs.taasky.ai. */
-export async function skillsIndex(fetcher: typeof fetch = fetch): Promise<Response> {
+/**
+ * common-ground, which taasky-docs copies from taasky/plugin. Unversioned: it
+ * changes on its own schedule, so its digest is re-read hourly. Until docs
+ * serves it, the index lists taasky alone rather than failing.
+ */
+export const COMMON_GROUND_URL =
+  "https://docs.taasky.ai/.well-known/agent-skills/common-ground/SKILL.md";
+const HOUR = 3600_000;
+let commonGround: { at: number; digest: string | null } | null = null;
+
+async function commonGroundDigest(fetcher: typeof fetch, now: number): Promise<string | null> {
+  if (commonGround && now - commonGround.at < HOUR) return commonGround.digest;
+  let digest: string | null = null;
+  try {
+    const res = await fetcher(COMMON_GROUND_URL);
+    if (res.ok) digest = `sha256:${await sha256(await res.text())}`;
+  } catch {}
+  commonGround = { at: now, digest };
+  return digest;
+}
+
+/** The agent-skills discovery index (schema 0.2.0), pointing at the skills on docs.taasky.ai. */
+export async function skillsIndex(
+  fetcher: typeof fetch = fetch,
+  now = Date.now(),
+): Promise<Response> {
   if (cached?.version !== SKILL_VERSION) {
     const res = await fetcher(SKILL_URL);
     if (!res.ok) return new Response("skill unavailable", { status: 502, headers: CORS });
     cached = { version: SKILL_VERSION, digest: `sha256:${await sha256(await res.text())}` };
   }
+  const cg = await commonGroundDigest(fetcher, now);
   const body = {
     $schema: "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
     skills: [
@@ -52,6 +77,18 @@ export async function skillsIndex(fetcher: typeof fetch = fetch): Promise<Respon
         url: SKILL_URL,
         digest: cached.digest,
       },
+      ...(cg
+        ? [
+            {
+              name: "common-ground",
+              type: "skill-md",
+              description:
+                "Reach a shared understanding with another person's agent, or between your own sessions, through Taasky: one list of findings, each agreed, disputed or open.",
+              url: COMMON_GROUND_URL,
+              digest: cg,
+            },
+          ]
+        : []),
     ],
   };
   return Response.json(body, { headers: { ...CORS, "Cache-Control": "public, max-age=3600" } });

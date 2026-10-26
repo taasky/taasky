@@ -799,6 +799,31 @@ const STATUS_ORDER = ["disputed", "open", "proposed", "agreed"];
  * who is talking and how it went. Only for the page of a person behind an
  * agent; null for any other room, which keeps the usual page.
  */
+/**
+ * The page link is a bearer key, and the agent is handed it too. Only a
+ * Telegram button press is the human's alone: the bound chat's buttons count.
+ */
+/**
+ * Telegram connected: only the bound chat's buttons answer a card. The page
+ * link would let the agent, which holds it too, confirm for its human.
+ */
+const answersInTelegram = async (deps: WebDeps, userId: string) =>
+  Boolean(deps.bindUrl) && (await db.getChannel(deps.DB, userId)) !== null;
+
+/**
+ * The page link is a bearer key. With an agent, the agent holds it too, so
+ * only Telegram, once connected, is the human's alone.
+ */
+async function linkNote(deps: WebDeps, userId: string, agent: boolean, bookmark = false) {
+  const key = `This is your personal link.${bookmark ? " Bookmark it to come back." : ""}`;
+  const rest = !agent
+    ? "Anyone who has it can answer for you."
+    : (await answersInTelegram(deps, userId))
+      ? "Your answers go through Telegram, where only you can give them."
+      : `Anyone who has it, your agent included, can answer for you.${deps.bindUrl ? " In Telegram, only you can." : ""}`;
+  return `<p><small>${key} ${rest}</small></p>`;
+}
+
 async function reviewRoom(
   deps: WebDeps,
   loaded: LoadedRoom,
@@ -845,7 +870,7 @@ async function reviewRoom(
     const yes = msg.reply_markup.inline_keyboard[0]?.[0];
     if (deps.oneHuman && asked.verdict === "approve" && yes)
       yes.text = "✅ Agree for both sessions";
-    call = cardHtml(card, msg);
+    call = cardHtml(card, msg, await answersInTelegram(deps, owner.user_id));
   } else if (room.state === "agreed") {
     call = `<section class="card-ask settled"><p class="eyebrow">Agreed</p><p>Both sides hold this list. Nothing left to do.</p></section>`;
   } else if (done) {
@@ -903,7 +928,7 @@ async function reviewRoom(
   ${call}
   <section><p class="eyebrow">Who's talking</p><ul class="who">${who}</ul></section>
   <section><p class="eyebrow">How it went · ${roomLabel(room.id)}</p><ol class="went">${moves}</ol></section>
-  ${done ? "" : `<p><small>This is your personal link. Anyone who has it can answer for you.</small></p>`}
+  ${done ? "" : await linkNote(deps, me.user_id, true)}
 </aside>
 </div>`;
 }
@@ -1132,7 +1157,7 @@ async function showRoom(
     const yes = msg.reply_markup.inline_keyboard[0]?.[0];
     if (deps.oneHuman && asked.verdict === "approve" && yes)
       yes.text = "✅ Agree for both sessions";
-    side.push(cardHtml(card, msg));
+    side.push(cardHtml(card, msg, await answersInTelegram(deps, owner.user_id)));
   }
   side.push(termsHtml);
   const kind = readOnly ? "r" : "p";
@@ -1194,9 +1219,7 @@ async function showRoom(
       note.push(`<p>Telegram can tell you when there's something to confirm, so you don't have to check back.</p>
   <a class="button inline" href="${escapeHtml(await deps.bindUrl(link.user_id))}">Tell me in Telegram <span class="arrow">&rarr;</span></a>`);
     }
-    note.push(
-      `<p><small>This is your personal link. Anyone who has it can answer for you.</small></p>`,
-    );
+    note.push(await linkNote(deps, link.user_id, true));
     lead.push(`<div class="side-note">${note.join("\n")}</div>`);
   } else if (!done) {
     const note: string[] = [];
@@ -1210,7 +1233,7 @@ async function showRoom(
   <a class="button inline" href="${escapeHtml(await deps.bindUrl(link.user_id))}">Tell me in Telegram <span class="arrow">&rarr;</span></a>`,
       );
     }
-    note.push(`<p><small>This is your personal link. Bookmark it to come back. Anyone who has it can answer for you.</small></p>
+    note.push(`${await linkNote(deps, link.user_id, false, true)}
   <form method="post">
     <input type="hidden" name="action" value="cancel">
     <button class="ghost">Step out of this</button>
@@ -1242,6 +1265,12 @@ async function answerCard(deps: WebDeps, link: db.WebLink, request: Request): Pr
   const form = await request.formData();
   const pending = String(form.get("pending") ?? "");
   const decision = String(form.get("decision") ?? "");
+  if (await answersInTelegram(deps, link.user_id)) {
+    const reason = "your Telegram is connected, so the answer goes there";
+    return json
+      ? Response.json({ error: reason }, { status: 403 })
+      : showRoom(deps, link, `Not sent: ${reason}.`, undefined, true);
+  }
   const now = new Date();
   let result: { status: string; reason?: string };
   try {

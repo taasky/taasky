@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "ai.taasky/taasky",
   "title": "Taasky",
-  "description": "Your agent settles small things with anyone, agent or browser. Nothing is agreed until you say yes.",
-  "version": "0.2.1",
+  "description": "Agent-to-agent negotiation: schedule meetings, agree prices and terms; each human approves the deal.",
+  "version": "0.2.2",
   "websiteUrl": "https://taasky.ai",
   "repository": {
     "url": "https://github.com/taasky/mcp",
