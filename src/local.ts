@@ -8,7 +8,9 @@ export function dropStaleToken(pathname: string, headers: Headers, oneHuman: boo
 
 // For the same reason local mode doesn't advertise OAuth. `codex mcp add`
 // reads these documents, finds a sign-in, and opens a window for localhost
-// although /mcp never asks for one.
+// although /mcp never asks for one. Core serves them through the OAuth
+// provider whatever ONE_HUMAN says; once core (taasky-mcp) skips them in that
+// mode, this and dropStaleToken can go.
 const OAUTH_DISCOVERY = new Set([
   "/.well-known/oauth-protected-resource/mcp",
   "/.well-known/oauth-authorization-server",

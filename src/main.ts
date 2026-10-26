@@ -49,8 +49,7 @@ function context() {
   };
 }
 
-async function toRequest(req: IncomingMessage): Promise<Request> {
-  const url = new URL(req.url ?? "/", cfg.baseUrl);
+async function toRequest(req: IncomingMessage, url: URL): Promise<Request> {
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) {
     if (v === undefined) continue;
@@ -82,10 +81,9 @@ async function send(res: ServerResponse, r: Response) {
 
 const server = createServer(async (req, res) => {
   try {
-    const request = await toRequest(req);
-    if (hidesOAuth(new URL(request.url).pathname, cfg.oneHuman)) {
-      return await send(res, Response.json({ error: "not_found" }, { status: 404 }));
-    }
+    const url = new URL(req.url ?? "/", cfg.baseUrl);
+    if (hidesOAuth(url.pathname, cfg.oneHuman)) return await send(res, new Response("Not found", { status: 404 }));
+    const request = await toRequest(req, url);
     const asset = await serveStatic(join(root, "core/public"), request);
     await send(res, asset ?? (await worker.fetch(request, env as never, context() as never)));
   } catch (e) {
