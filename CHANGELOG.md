@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.3
+
+- Local mode doesn't advertise OAuth: `/.well-known/oauth-protected-resource/mcp`
+  and `/.well-known/oauth-authorization-server` answer 404. Before,
+  `npx @taasky/taasky connect` ran `codex mcp add`, Codex found a sign-in, and
+  a window opened for localhost.
+
+## 0.1.2
+
+- `mcpName` `ai.taasky/common-ground`, for the MCP Registry.
+
 ## 0.1.1
 
 - Local mode: `/mcp` ignores a token left from an earlier node on this
