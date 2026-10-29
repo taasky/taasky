@@ -18,6 +18,7 @@ import { serveStatic } from "./static.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const cfg = config(process.env);
+const VERSION: string = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 
 const db = new SqliteD1(cfg.dbFile);
 // schema.sql is idempotent (CREATE … IF NOT EXISTS): a new file gets every table, an old one keeps its rows.
@@ -85,7 +86,10 @@ const server = createServer(async (req, res) => {
     if (hidesOAuth(url.pathname, cfg.oneHuman)) return await send(res, new Response("Not found", { status: 404 }));
     const request = await toRequest(req, url);
     const asset = await serveStatic(join(root, "core/public"), request);
-    await send(res, asset ?? (await worker.fetch(request, env as never, context() as never)));
+    const answer = asset ?? (await worker.fetch(request, env as never, context() as never));
+    // `taasky mcp` reads it to tell whether the node it started is this version.
+    if (url.pathname === "/health") res.setHeader("x-taasky-node", VERSION);
+    await send(res, answer);
   } catch (e) {
     console.error(JSON.stringify({ event: "request_failed", error: String(e), stack: (e as Error).stack }));
     if (!res.headersSent) res.writeHead(500, { "content-type": "application/json" });

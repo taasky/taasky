@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.5
+
+- One command: `npx @taasky/taasky connect`. It adds `taasky-local` as
+  `npx -y @taasky/taasky mcp`, a stdio server that starts the node in the
+  background when it isn't running and carries the session's messages to it.
+  No second terminal, and nothing to do after a reboot. Running `connect`
+  again replaces the URL form an earlier version added.
+- A node started this way logs to `~/.taasky/local.log`, and a newer version
+  replaces it on the next session start. `/health` names the node's version in
+  `x-taasky-node`.
+
 ## 0.1.4
 
 - Core from taasky-mcp 437c3b3 (#84): a common-ground room needs no

@@ -2,8 +2,11 @@
 // taasky local    a node on this machine, for your own sessions: Claude Code,
 //                 Codex, a worktree and the session already open. Loopback
 //                 only, one SQLite file in ~/.taasky, nothing leaves the machine.
-// taasky connect  adds that node to Claude Code and Codex as the MCP server
-//                 "taasky-local", for every project.
+// taasky mcp      the same node for one session, over stdio: starts it in the
+//                 background if it isn't running, then carries the session's
+//                 messages to it (bin/stdio.mjs).
+// taasky connect  adds `taasky mcp` to Claude Code and Codex as the MCP server
+//                 "taasky-local", for every project. The only step there is.
 // taasky          the node as configured by its environment (see .env.example).
 
 import { execFileSync } from "node:child_process";
@@ -50,29 +53,37 @@ if (command === "local") {
     TAASKY_ONE_HUMAN: "1",
   });
   console.log(`Taasky on this machine: ${url}/mcp`);
-  console.log("Not connected yet? In another terminal: npx @taasky/taasky connect");
   await import("../dist/main.js");
+} else if (command === "mcp") {
+  const { stdio } = await import("./stdio.mjs");
+  await stdio(port, rest);
 } else if (command === "connect") {
-  const mcp = `${url}/mcp`;
+  // The sessions start the node themselves; a port other than the default goes along.
+  const run = ["npx", "-y", "@taasky/taasky", "mcp", ...(port === "8790" ? [] : ["--port", port])];
   const steps = [
-    ["claude", ["mcp", "add", "--transport", "http", "--scope", "user", "taasky-local", mcp]],
-    ["codex", ["mcp", "add", "taasky-local", "--url", mcp]],
+    ["claude", ["mcp", "remove", "--scope", "user", "taasky-local"], ["mcp", "add", "--scope", "user", "taasky-local", "--", ...run]],
+    ["codex", ["mcp", "remove", "taasky-local"], ["mcp", "add", "taasky-local", "--", ...run]],
   ];
-  for (const [bin, args] of steps) {
+  for (const [bin, remove, add] of steps) {
     if (!onPath(bin)) {
       console.log(`${bin}: not installed, skipped`);
       continue;
     }
+    // An earlier connect added the node by URL: replace it.
     try {
-      execFileSync(bin, args, { stdio: "inherit" });
-      console.log(`${bin}: taasky-local → ${mcp}`);
+      execFileSync(bin, remove, { stdio: "ignore" });
+    } catch {}
+    try {
+      execFileSync(bin, add, { stdio: "inherit" });
+      console.log(`${bin}: taasky-local → ${run.join(" ")}`);
     } catch {
-      console.log(`${bin}: could not add it (already there?). By hand: ${bin} ${args.join(" ")}`);
+      console.log(`${bin}: could not add it. By hand: ${bin} ${add.join(" ")}`);
     }
   }
+  console.log("Sessions already open pick it up after a restart.");
 } else if (command === "start") {
   await import("../dist/main.js");
 } else {
-  console.error("Usage: taasky [local | connect] [--port 8790]");
+  console.error("Usage: taasky [connect | mcp | local] [--port 8790]");
   process.exit(2);
 }

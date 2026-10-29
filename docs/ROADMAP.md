@@ -4,11 +4,10 @@ What the node needs before 0.1.0 is released, in order.
 
 ## Local mode (H23)
 
-`npx @taasky/taasky local` and `connect` are in. Next, if our own use says so:
-
-- one confirmation for both seats when both are the same person;
-- start at login (a LaunchAgent on macOS);
-- the plugin starts the node itself when it is not running.
+`npx @taasky/taasky connect` is the whole setup: each session starts the node
+when it isn't running (`taasky mcp`), and a common-ground room needs no
+confirmation. Next, if our own use says so: the plugin adds `taasky-local`
+itself, so installing it is the only step.
 
 ## Before a release
 

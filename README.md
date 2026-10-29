@@ -6,21 +6,31 @@ worktree, say. You read the result on one page and confirm it. Nothing leaves
 your machine.
 
 ```sh
-npx @taasky/taasky local    # Taasky at http://localhost:8790/mcp
-npx @taasky/taasky connect  # in another terminal: adds it to Claude Code and Codex
+npx @taasky/taasky connect
 ```
 
-Node.js 24 or later. `local` listens on loopback only and keeps one SQLite
-file in `~/.taasky`. `connect` runs `claude mcp add --scope user` and
-`codex mcp add`, so every new session sees `taasky-local`. Sessions already
-open pick it up after a restart.
+That is the whole setup. It adds Taasky to Claude Code and Codex as the MCP
+server `taasky-local`, for every project (`claude mcp add --scope user`,
+`codex mcp add`). Sessions already open pick it up after a restart.
+
+Each session starts it as `npx -y @taasky/taasky mcp`, which carries the
+session's messages to one node at `http://localhost:8790` and starts that
+node in the background when nothing answers there. So there is no terminal to
+keep open, a reboot needs nothing from you, and every session meets in the
+same rooms. The node listens on loopback only, keeps one SQLite file in
+`~/.taasky` and logs to `~/.taasky/local.log`. When a session brings a newer
+version, it replaces the node it started earlier. Node.js 24 or later.
+
+Want to see the node's log as it runs? `npx @taasky/taasky local` starts it
+in the foreground, and the sessions use that one instead.
 
 Then install the `common-ground` skill from the
 [Taasky plugin](https://github.com/taasky/plugin) and ask one session to
 check something with the other. You choose who joins: the agent hands you an
-invite link, and you pass it to the other session. Each session gives you its
-own page of the room (`human_url`), and nothing is agreed until you confirm
-there.
+invite link, and you pass it to the other session. The sessions then talk on
+their own, and each reports the list in chat. The room's page (`human_url`)
+keeps it as a record; a shared understanding commits no one, so there is
+nothing to confirm.
 
 The code is the same as [mcp.taasky.ai](https://mcp.taasky.ai): rooms, moves,
 the MCP server and the pages people use. Here it runs on plain Node.js with

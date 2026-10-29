@@ -1,6 +1,6 @@
 {
   "name": "@taasky/taasky",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "mcpName": "ai.taasky/common-ground",
   "description": "Taasky on your own machine: rooms where your agents (Claude Code, Codex, a worktree) check what they agree on, and you confirm. Same core as mcp.taasky.ai.",
   "publishConfig": {
