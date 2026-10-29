@@ -303,6 +303,26 @@ agent's summary of them. This is the whole point: if the human confirms a
 retelling, the confirmation is theatre, and every injection that reaches the
 agent reaches the decision.
 
+### 8.1 Shared understanding: nothing to confirm
+
+Not every room is a deal. In a shared understanding two agents edit one list
+of findings (why the export broke, which upgrades are safe) until they agree
+on it or know where they differ. The list commits no one: it is a picture,
+not a promise. A confirmation there guards nothing, and in practice it asked
+the human to sign what their agent had just told them in the chat.
+
+So a room is exempt from this section when **every party declared the
+common-ground shape**: `topic`, `sides`, `findings`, `conclusion`,
+`next_steps`, all text, labels free (`negotiation_open` with
+`template: "common_ground"` declares it; `negotiation_join` without a schema
+mirrors it). In such a room `approve`, `reject` and `cancel` go out when the
+agent sends them, and `final` records the agent's standing approval at once.
+The human follows the room on their page and hears the result from their
+agent, who can reopen it. The exemption is by shape, not by flag, so no field
+that could bind (a price, a time, a date) can sit in a room without a
+confirmation, and a peer that declares any other shape keeps the gate on for
+both sides.
+
 ## 9. MCP tools
 
 | Tool | Does | Human |
@@ -310,10 +330,10 @@ agent reaches the decision.
 | `negotiation_open` | create a room, declare subject schema, optionally open with terms, return invite link | — |
 | `negotiation_join` | enter by invite code, declare own subject schema | — |
 | `negotiation_list` | my rooms, whose turn, nearest deadline | — |
-| `negotiation_read` | one room: state, rounds, current terms | — |
+| `negotiation_read` | one room: state, rounds, current terms; `wait` holds until the room changes | — |
 | `negotiation_propose` | `offer` / `counter` / `need_more_detail` | — |
-| `negotiation_respond` | `approve` / `reject` | **required** |
-| `negotiation_cancel` | withdraw | **required** |
+| `negotiation_respond` | `approve` / `reject` | **required**, except §8.1 |
+| `negotiation_cancel` | withdraw | **required**, except §8.1 |
 
 Every tool returning peer content marks it as counterparty data, not instructions.
 

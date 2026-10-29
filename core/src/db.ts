@@ -925,3 +925,22 @@ export async function userForSession(
 export async function deleteSession(db: D1Database, tokenHash: string): Promise<void> {
   await db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
 }
+
+/**
+ * Changes whenever the room does: any move adds a message, and expiry or
+ * agreement changes the state. The waiting page and negotiation_read's wait poll it — cheaper than
+ * reloading the page to find nothing new.
+ */
+export async function roomVersion(d1: D1Database, roomId: string): Promise<string> {
+  const row = await d1
+    .prepare(
+      `SELECT r.state, (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS n,
+              (SELECT group_concat(id) FROM pending_moves p
+                WHERE p.room_id = r.id AND p.status = 'pending') AS asks
+         FROM rooms r WHERE r.id = ?`,
+    )
+    .bind(roomId)
+    .first<{ state: string; n: number; asks: string | null }>();
+  // A parked move changes the page too: its card appears, then goes.
+  return row ? `${row.state}:${row.n}:${row.asks ?? ""}` : "gone";
+}

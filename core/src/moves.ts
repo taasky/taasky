@@ -15,6 +15,7 @@ import { isCircling, planMove, termsOnTable } from "./protocol/move.js";
 import { asOf, MoveError, type RoomState } from "./protocol/state.js";
 import type { SubjectSchema } from "./protocol/subject.js";
 import { counterWithin } from "./protocol/suggest.js";
+import { isUnderstandingRoom } from "./protocol/understanding.js";
 
 export interface LoadedRoom {
   room: db.RoomRow;
@@ -71,12 +72,14 @@ export async function joinRoom(
   d1: D1Database,
   code: string,
   userId: string,
-  schema: SubjectSchema,
+  declared: SubjectSchema | null,
   now: Date,
   limits: Limits | null = null,
 ) {
   const { room, initiator } = await openInvite(d1, code, now);
   if (initiator.user_id === userId) throw new MoveError("you already take part in this room");
+  // Declaring nothing mirrors the opener: the usual case, and the one that can't go wrong.
+  const schema = declared ?? initiator.subject_schema;
 
   const me = participantId();
   await db.addParticipant(d1, {
@@ -92,7 +95,7 @@ export async function joinRoom(
   const active = await db.activateRoom(d1, room.id, { initiator: initiator.id, peer: me });
   // Someone else took the seat between reading the invitation and now.
   if (!active) throw new MoveError(ANSWERED);
-  return { room: active, me, initiator };
+  return { room: active, me, initiator, schema };
 }
 
 /**
@@ -147,6 +150,14 @@ export interface MoveResult {
   your_turn: boolean;
 }
 
+/**
+ * Whether this move waits for a human (§8). Not in a shared understanding
+ * (§8.1): a list of findings commits no one, so there is nothing to confirm.
+ */
+export function needsHuman(parties: { subject_schema: SubjectSchema }[], verdict: Verdict) {
+  return isHumanGated(verdict) && !isUnderstandingRoom(parties);
+}
+
 export async function playMove(
   d1: D1Database,
   loaded: LoadedRoom,
@@ -155,7 +166,7 @@ export async function playMove(
   releasedByHuman = false,
   oneHuman = false,
 ): Promise<MoveResult> {
-  if (isHumanGated(req.verdict) && !releasedByHuman) {
+  if (needsHuman(loaded.parties, req.verdict) && !releasedByHuman) {
     throw new MoveError(`${req.verdict} needs your human's confirmation`);
   }
   const plan = await planMove(
@@ -253,10 +264,15 @@ export async function requestStandingApproval(
   loaded: LoadedRoom,
   subjectHash: string,
   now: Date,
-): Promise<{ card: ConfirmationCard; delivery: Delivery }> {
+): Promise<{ card: ConfirmationCard; delivery: Delivery } | null> {
   const terms = termsOnTable(loaded.history);
   if (terms?.from_id !== loaded.me.id || terms.subject_hash !== subjectHash) {
     throw new MoveError("final applies only to terms you have just tabled");
+  }
+  // Nothing to confirm: the agent's own final stands at once. Null says so.
+  if (!needsHuman(loaded.parties, "approve")) {
+    await db.setStandingApproval(d1, loaded.me.id, subjectHash);
+    return null;
   }
   const id = pendingId();
   await db.createPendingMove(d1, {

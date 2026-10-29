@@ -16,6 +16,8 @@
 //                    instead. Asked for JSON (scripts/smoke.mjs), the outcome as data
 //   GET  /p/<token>/calendar.ics, /r/<token>/calendar.ics
 //                    the agreed deal as a calendar event (calendar.ts)
+//   GET  /p/<token>.md, /r/<token>.md
+//                    a shared understanding's list as Markdown (protocol/understanding.ts)
 //
 // The person makes their own moves on /p, so approve / reject / cancel are
 // released directly: the human gate (§8) exists to keep an agent from deciding
@@ -53,8 +55,17 @@ import type { Verdict } from "../protocol/envelope.js";
 import { termsOnTable } from "../protocol/move.js";
 import { isTerminal, MoveError } from "../protocol/state.js";
 import { type FieldType, SubjectError, type SubjectSchema } from "../protocol/subject.js";
+import {
+  FINDING_STATUS,
+  FINDING_STATUSES,
+  type FindingStatus,
+  findingNotes,
+  isUnderstandingRoom,
+  readFinding,
+  understandingMarkdown,
+} from "../protocol/understanding.js";
 import { replayPace, replayStory } from "../replay.js";
-import { cardMessage, findingCounts, parseFinding } from "../telegram.js";
+import { cardMessage, findingCounts } from "../telegram.js";
 import {
   agentInvite,
   agentInviteMarkdown,
@@ -81,7 +92,7 @@ export async function handleWeb(request: Request, deps: WebDeps): Promise<Respon
       ? acceptInvite(deps, request, invite[1]!)
       : showInvite(deps, request, invite[1]!);
   }
-  const personal = /^\/p\/([a-z0-9]{26})(\/v|\/calendar\.ics)?$/.exec(pathname);
+  const personal = /^\/p\/([a-z0-9]{26})(\/v|\/calendar\.ics|\.md)?$/.exec(pathname);
   if (personal) {
     const link = await db.getWebLink(deps.DB, personal[1]!);
     if (!link)
@@ -91,12 +102,13 @@ export async function handleWeb(request: Request, deps: WebDeps): Promise<Respon
         404,
       );
     if (personal[2] === "/calendar.ics") return calendarFile(deps, link, "p");
-    if (personal[2]) return Response.json({ v: await roomVersion(deps.DB, link.room_id) });
+    if (personal[2] === ".md") return markdownFile(deps, link);
+    if (personal[2]) return Response.json({ v: await db.roomVersion(deps.DB, link.room_id) });
     return request.method === "POST"
       ? move(deps, link, await request.formData())
       : showRoom(deps, link);
   }
-  const view = /^\/r\/([a-z0-9]{26})(\/v|\/calendar\.ics)?$/.exec(pathname);
+  const view = /^\/r\/([a-z0-9]{26})(\/v|\/calendar\.ics|\.md)?$/.exec(pathname);
   if (view) {
     const answering = request.method === "POST" && !view[2];
     if (request.method !== "GET" && !answering) {
@@ -110,7 +122,8 @@ export async function handleWeb(request: Request, deps: WebDeps): Promise<Respon
         404,
       );
     if (view[2] === "/calendar.ics") return calendarFile(deps, link, "r");
-    if (view[2]) return Response.json({ v: await roomVersion(deps.DB, link.room_id) });
+    if (view[2] === ".md") return markdownFile(deps, link);
+    if (view[2]) return Response.json({ v: await db.roomVersion(deps.DB, link.room_id) });
     if (answering) return answerCard(deps, link, request);
     return showRoom(deps, link, undefined, undefined, true);
   }
@@ -147,6 +160,17 @@ async function calendarFile(deps: WebDeps, link: db.WebLink, kind: "p" | "r"): P
   });
 }
 
+/** A shared understanding's list as Markdown, to paste into a PR, an issue or notes. */
+async function markdownFile(deps: WebDeps, link: db.WebLink): Promise<Response> {
+  const loaded = await loadRoom(deps.DB, link.room_id, link.user_id, new Date());
+  const subject = termsOnTable(loaded.history)?.subject;
+  if (!subject || !isUnderstandingRoom(loaded.parties))
+    return message("No list", "This room has no list of findings to show as Markdown.", 404);
+  return new Response(understandingMarkdown(subject, loaded.room.state), {
+    headers: { "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
 /** Google, or the .ics that Apple Calendar and Outlook open. */
 function calendarBlock(event: CalendarEvent, icsPath: string): string {
   return `<section class="calendar" id="calendar">
@@ -164,25 +188,6 @@ const GET_TAASKY = `<div class="side-note after">
   <p>Want your agent to settle things like this for you? Taasky works with Claude, Hermes, OpenClaw and any agent that speaks MCP.</p>
   <a class="button inline" href="https://taasky.ai/?utm_source=room&amp;utm_medium=agreed">Get Taasky <span class="arrow">&rarr;</span></a>
 </div>`;
-
-/**
- * Changes whenever the room does: any move adds a message, and expiry or
- * agreement changes the state. The waiting page polls it — cheaper than
- * reloading the page to find nothing new.
- */
-async function roomVersion(d1: D1Database, roomId: string): Promise<string> {
-  const row = await d1
-    .prepare(
-      `SELECT r.state, (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS n,
-              (SELECT group_concat(id) FROM pending_moves p
-                WHERE p.room_id = r.id AND p.status = 'pending') AS asks
-         FROM rooms r WHERE r.id = ?`,
-    )
-    .bind(roomId)
-    .first<{ state: string; n: number; asks: string | null }>();
-  // A parked move changes the page too: its card appears, then goes.
-  return row ? `${row.state}:${row.n}:${row.asks ?? ""}` : "gone";
-}
 
 /**
  * Keeps an open room page current without reloading it. While the room is
@@ -602,15 +607,19 @@ function showValue(type: FieldType, item: unknown): string {
  * the sides still differ on first, each claim in full and its reason small.
  */
 function findingList(items: unknown[]): string {
-  const parsed = items.map(parseFinding).filter((f) => f !== null);
+  const parsed = items.map(readFinding).filter((f) => f !== null);
   const order = (st: string) => (st === "agreed" ? 1 : 0);
   return `<ol>${parsed
     .sort((a, b) => order(a.status) - order(b.status) || Number(a.n) - Number(b.n))
     .map(
       (f) =>
-        `<li class="${escapeHtml(f.status)}"><span class="fid">F${escapeHtml(f.n)} · ${escapeHtml(f.status)}</span> ${escapeHtml(f.claim)}${
-          f.reason ? `<small>${escapeHtml(f.reason)}</small>` : ""
-        }</li>`,
+        `<li class="${escapeHtml(f.status)}"><span class="fid">F${escapeHtml(f.n)} · ${escapeHtml(f.status)}</span> ${escapeHtml(f.claim)}${[
+          f.reason,
+          ...findingNotes(f).map(([label, note]) => `${label}: ${note}`),
+        ]
+          .filter(Boolean)
+          .map((t) => `<small>${escapeHtml(t)}</small>`)
+          .join("")}</li>`,
     )
     .join("")}</ol>`;
 }
@@ -784,15 +793,6 @@ function movesBlock(loaded: LoadedRoom, readOnly: boolean, them: string | null):
   <ol>${items.join("")}</ol></section>`;
 }
 
-/** Status words a person reads, and the order they read them in. */
-const STATUS_WORD: Record<string, string> = {
-  disputed: "differ",
-  open: "open",
-  proposed: "proposed",
-  agreed: "agreed",
-};
-const STATUS_ORDER = ["disputed", "open", "proposed", "agreed"];
-
 /**
  * A reconciliation (topic, findings, conclusion) laid out like a review: the
  * conclusion and the points on the left, the person's call on the right with
@@ -829,13 +829,14 @@ async function reviewRoom(
   loaded: LoadedRoom,
   asked: db.PendingMove | null,
   them: db.Shown | null,
+  markdownPath: string,
   error?: string,
 ): Promise<string | null> {
   const terms = termsOnTable(loaded.history);
   const subject = terms?.subject;
   if (!subject || typeof subject.topic !== "string" || !Array.isArray(subject.findings))
     return null;
-  const findings = subject.findings.map(parseFinding);
+  const findings = subject.findings.map(readFinding);
   if (!findings.length || findings.some((f) => f === null)) return null;
   const parsed = findings as NonNullable<(typeof findings)[number]>[];
   const { room, me } = loaded;
@@ -844,22 +845,32 @@ async function reviewRoom(
   const conclusion = typeof subject.conclusion === "string" ? subject.conclusion.trim() : "";
   const counts = new Map<string, number>();
   for (const f of parsed) counts.set(f.status, (counts.get(f.status) ?? 0) + 1);
-  const chips = STATUS_ORDER.filter((s) => counts.has(s))
-    .map((s) => `<span class="chip ${s}">${counts.get(s)} ${STATUS_WORD[s]}</span>`)
+  const chips = FINDING_STATUSES.filter((s) => counts.has(s))
+    .map((s) => `<span class="chip ${s}">${counts.get(s)} ${FINDING_STATUS[s].chip}</span>`)
     .join("");
-  const rank = (s: string) => STATUS_ORDER.indexOf(s);
+  const rank = (s: FindingStatus) => FINDING_STATUSES.indexOf(s);
   const rows = [...parsed]
     .sort((a, b) => rank(a.status) - rank(b.status) || Number(a.n) - Number(b.n))
     .map(
       (
         f,
-      ) => `<li class="${escapeHtml(f.status)}"><span class="fid">F${escapeHtml(f.n)} ${escapeHtml(STATUS_WORD[f.status] ?? f.status)}</span>
-  <span class="claim">${escapeHtml(f.claim)}</span>${f.reason ? `<span class="why">${escapeHtml(f.reason)}</span>` : ""}</li>`,
+      ) => `<li class="${escapeHtml(f.status)}"><span class="fid">F${escapeHtml(f.n)} ${escapeHtml(FINDING_STATUS[f.status].chip)}</span>
+  <span class="claim">${escapeHtml(f.claim)}</span>${f.reason ? `<span class="why">${escapeHtml(f.reason)}</span>` : ""}${findingNotes(
+    f,
+  )
+    .map(([label, note]) => `<span class="why">${escapeHtml(label)}: ${escapeHtml(note)}</span>`)
+    .join("")}</li>`,
     )
     .join("");
   const steps = Array.isArray(subject.next_steps)
     ? subject.next_steps.filter((s): s is string => typeof s === "string")
     : [];
+
+  // A shared understanding asks nobody to confirm it (PROTOCOL.md §8.1).
+  const understanding = isUnderstandingRoom(loaded.parties);
+  const markdownLink = understanding
+    ? `<p><small><a href="${escapeHtml(markdownPath)}">The list as Markdown</a>, to paste into a PR or notes.</small></p>`
+    : "";
 
   // Your call: the parked move with its buttons, else where things stand.
   let call: string;
@@ -872,9 +883,12 @@ async function reviewRoom(
       yes.text = "✅ Agree for both sessions";
     call = cardHtml(card, msg, await answersInTelegram(deps, owner.user_id));
   } else if (room.state === "agreed") {
-    call = `<section class="card-ask settled"><p class="eyebrow">Agreed</p><p>Both sides hold this list. Nothing left to do.</p></section>`;
+    call = `<section class="card-ask settled"><p class="eyebrow">Agreed</p><p>Both sides hold this list. Nothing left to do.</p>${markdownLink}</section>`;
   } else if (done) {
-    call = `<section class="card-ask settled"><p class="eyebrow">Closed</p><p>This room ended without an agreed list.</p></section>`;
+    call = `<section class="card-ask settled"><p class="eyebrow">Closed</p><p>This room ended without an agreed list.</p>${markdownLink}</section>`;
+  } else if (understanding) {
+    call = `<section class="card-ask quiet"><p class="eyebrow">Nothing to confirm</p><p>The agents settle this list between them. It commits no one, and your agent tells you what came of it. This page updates by itself.</p>
+<p><small>Something off? Tell your agent. It can change course or stop here.</small></p></section>`;
   } else {
     call = `<section class="card-ask quiet"><p class="eyebrow">Your call</p><p>Nothing for you yet. The agents are still talking, and this page updates by itself.</p>
 <p><small>Something off? Tell your agent. It can change course or stop here.</small></p></section>`;
@@ -914,7 +928,7 @@ async function reviewRoom(
     })
     .join("");
 
-  const version = await roomVersion(deps.DB, room.id);
+  const version = await db.roomVersion(deps.DB, room.id);
   return `<div class="review" data-v="${version}" data-wait="${done ? 0 : 1}">
 <section class="review-main">
   <p class="topic">${escapeHtml(subject.topic)}</p>
@@ -1021,7 +1035,7 @@ async function showRoom(
 
   // A reconciliation reads as a review: conclusion and points, then the call.
   if (readOnly) {
-    const review = await reviewRoom(deps, loaded, asked, them, error);
+    const review = await reviewRoom(deps, loaded, asked, them, `/r/${link.token}.md`, error);
     if (review) {
       return htmlResponse(
         page(roomName(room.id).name, `${review}${LOCAL_TIME_SCRIPT}${REVIEW_LIVE_SCRIPT}`, {
@@ -1244,7 +1258,7 @@ async function showRoom(
   // An open room can change from either side at any time: a withdrawal, the
   // deadline, the same person on another device.
   const waiting = !done;
-  const version = await roomVersion(deps.DB, room.id);
+  const version = await db.roomVersion(deps.DB, room.id);
   return htmlResponse(
     page(
       roomName(room.id).name,

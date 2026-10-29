@@ -22,6 +22,13 @@ import type { Breach } from "./protocol/limits.js";
 import { termsOnTable } from "./protocol/move.js";
 import { MoveError } from "./protocol/state.js";
 import type { FieldType } from "./protocol/subject.js";
+import {
+  FINDING_STATUS,
+  FINDING_STATUSES,
+  type Finding,
+  findingNotes,
+  readFinding,
+} from "./protocol/understanding.js";
 import { replayPace, replayStory } from "./replay.js";
 import { shownText } from "./shown.js";
 
@@ -198,25 +205,6 @@ function formatValue(type: FieldType, value: unknown): string {
 // in the chat: the topic and the conclusion, then where the sides still
 // differ, then what they agreed, with each finding's reason.
 
-const FINDING = /^F(\d+)\s*·\s*(proposed|agreed|disputed|open)\s*·\s*([\s\S]*)$/i;
-
-/** One finding of a shared-picture room, split for display; null if it isn't one. */
-export function parseFinding(
-  item: unknown,
-): { n: string; status: string; claim: string; reason: string } | null {
-  const m = FINDING.exec(String(item).trim());
-  if (!m) return null;
-  const text = m[3]!.trim();
-  // The reason or evidence comes after the last colon (the skill's form).
-  const cut = text.lastIndexOf(": ");
-  return {
-    n: m[1]!,
-    status: m[2]!.toLowerCase(),
-    claim: cut > 0 ? text.slice(0, cut) : text,
-    reason: cut > 0 ? text.slice(cut + 2) : "",
-  };
-}
-
 /**
  * How a list of findings stands, by status, in the order a person cares about:
  * "2 disputed, 1 open, 5 agreed". Null when the items aren't findings.
@@ -224,34 +212,29 @@ export function parseFinding(
 export function findingCounts(items: unknown[]): string | null {
   const counts = new Map<string, number>();
   for (const item of items) {
-    const m = FINDING.exec(String(item).trim());
-    if (!m) return null;
-    const status = m[2]!.toLowerCase();
-    counts.set(status, (counts.get(status) ?? 0) + 1);
+    const f = readFinding(item);
+    if (!f) return null;
+    counts.set(f.status, (counts.get(f.status) ?? 0) + 1);
   }
   if (!counts.size) return null;
-  return ["disputed", "open", "proposed", "agreed"]
-    .filter((st) => counts.has(st))
-    .map((st) => `${counts.get(st)} ${st}`)
+  return FINDING_STATUSES.filter((st) => counts.has(st))
+    .map((st) => `${counts.get(st)} ${FINDING_STATUS[st].count}`)
     .join(", ");
 }
 
 /** Telegram refuses a message over 4096 characters; leave room for the heading and links. */
 const ALIGN_BUDGET = 3500;
 
-interface Finding {
-  n: string;
-  status: string;
-  text: string;
-}
-
 /** A finding line as escaped HTML, with its reason or with the claim alone. */
 function findingLine(f: Finding, withReason: boolean): string {
-  const text = withReason ? f.text : f.text.split(":")[0]!.trim();
-  const tag =
-    f.status === "agreed"
-      ? ""
-      : ` <i>${f.status === "open" ? "you differ" : f.status === "proposed" ? "not answered" : "disputed"}</i>`;
+  const text = withReason
+    ? [
+        f.reason ? `${f.claim}: ${f.reason}` : f.claim,
+        ...findingNotes(f).map(([label, note]) => `${label.toLowerCase()}: ${note}`),
+      ].join("; ")
+    : f.claim;
+  const { tag: word } = FINDING_STATUS[f.status];
+  const tag = word ? ` <i>${word}</i>` : "";
   return `• <b>F${f.n}</b>${tag} · ${escapeHtml(text)}`;
 }
 
@@ -266,12 +249,12 @@ export function alignLines(fields: CardField[]): string[] | null {
   const parsed: Finding[] = [];
   const loose: string[] = [];
   for (const item of findings.value as unknown[]) {
-    const m = FINDING.exec(String(item).trim());
-    if (m) parsed.push({ n: m[1]!, status: m[2]!.toLowerCase(), text: m[3]!.trim() });
+    const f = readFinding(item);
+    if (f) parsed.push(f);
     else loose.push(String(item));
   }
-  const apart = parsed.filter((f) => f.status !== "agreed");
-  const agreed = parsed.filter((f) => f.status === "agreed");
+  const apart = parsed.filter((f) => !f.status.startsWith("agreed"));
+  const agreed = parsed.filter((f) => f.status.startsWith("agreed"));
   const value = (field: string) => {
     const f = by.get(field);
     return f ? `<b>${escapeHtml(f.label)}</b>: ${formatValue(f.type, f.value)}` : null;

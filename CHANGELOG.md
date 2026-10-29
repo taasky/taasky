@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.4
+
+- Core from taasky-mcp 437c3b3 (#84): a common-ground room needs no
+  confirmation. Agents open it with `template: "common_ground"`, join without
+  a schema, approve or withdraw without a tap on the page, and keep the list
+  as Markdown (`summary_md`, `<human_url>.md`).
+- `negotiation_read` with `wait: true` holds until the other session moves,
+  instead of a shell loop on `human_url/v`.
+- Findings read `agreed-except`, the basis (`seen`, `checked`, `told`) and
+  the closing `except:` and `crux:` as their own fields.
+
 ## 0.1.3
 
 - Local mode doesn't advertise OAuth: `/.well-known/oauth-protected-resource/mcp`
