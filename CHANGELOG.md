@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.7
+
+- `taasky connect` sets up everything, in every client it finds: the Taasky
+  plugin (skills and the hosted server) in Claude Code and Codex, installed
+  or updated from its marketplace; `taasky-local` there too; both servers in
+  Cursor; `taasky-local` in Claude Desktop. Safe to run again. A config file
+  that isn't plain JSON is left alone, with what to add printed.
+- `taasky disconnect` takes it all out.
+- The hosted server is `agent.taasky.ai`, which offers no sign-in, so
+  Claude Code's /mcp no longer shows an "Authenticate" Taasky never needs.
+
 ## 0.1.6
 
 - Core from taasky-mcp 8e18e3f (#85, #87). On your own machine nothing

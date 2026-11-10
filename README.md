@@ -9,11 +9,22 @@ your machine.
 npx @taasky/taasky connect
 ```
 
-That is the whole setup. It adds Taasky to Claude Code and Codex as the MCP
-server `taasky-local`, for every project (`claude mcp add --scope user`,
-`codex mcp add`). Sessions already open pick it up after a restart.
+That is the whole setup, and running it again is safe: it updates what is
+there. For every agent client it finds:
 
-Each session starts it as `npx -y @taasky/taasky mcp`, which carries the
+- **Claude Code and Codex**: the [Taasky plugin](https://github.com/taasky/plugin)
+  from its marketplace, with the `taasky` and `common-ground` skills and the
+  hosted server `agent.taasky.ai` for negotiating with other people, and
+  `taasky-local`, the node on this machine for your own sessions.
+- **Cursor**: both servers in `~/.cursor/mcp.json`.
+- **Claude Desktop**: `taasky-local` in its config; the hosted server is a
+  connector you add in Settings → Connectors.
+
+Neither server asks you to sign in, so nothing to authenticate. Sessions
+already open pick it up after a restart. `npx @taasky/taasky disconnect`
+takes it all out again.
+
+Each session starts `taasky-local` as `npx -y @taasky/taasky mcp`, which carries the
 session's messages to one node at `http://localhost:8790` and starts that
 node in the background when nothing answers there. So there is no terminal to
 keep open, a reboot needs nothing from you, and every session meets in the
@@ -24,9 +35,7 @@ version, it replaces the node it started earlier. Node.js 24 or later.
 Want to see the node's log as it runs? `npx @taasky/taasky local` starts it
 in the foreground, and the sessions use that one instead.
 
-Then install the `common-ground` skill from the
-[Taasky plugin](https://github.com/taasky/plugin) and ask one session to
-check something with the other. You choose who joins: the agent hands you an
+Then ask one session to check something with the other. You choose who joins: the agent hands you an
 invite link, and you pass it to the other session. The sessions then talk on
 their own, and each reports the list in chat. The room's page (`human_url`)
 keeps it as a record; a shared understanding commits no one, so there is
