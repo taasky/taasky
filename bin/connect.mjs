@@ -18,15 +18,6 @@ const MARKETPLACE = "taasky/plugin";
 const PLUGIN = "taasky@taasky";
 const LOCAL = "taasky-local";
 
-function onPath(bin) {
-  try {
-    execFileSync("which", [bin], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** Runs a client's CLI quietly: true if it succeeded. */
 function run(bin, args) {
   try {
@@ -37,56 +28,60 @@ function run(bin, args) {
   }
 }
 
-/** The first of these commands that succeeds, or null. */
-const first = (bin, ...tries) => tries.find((args) => run(bin, args)) ?? null;
+/** The first of these commands that succeeds; otherwise the last, to show the person. */
+function first(bin, tries) {
+  const ok = tries.find((args) => run(bin, args));
+  return ok ? null : `${bin} ${tries.at(-1).join(" ")}`;
+}
 
-/** Claude Code and Codex: the plugin from its marketplace, and the local node. */
+/**
+ * Claude Code and Codex: the plugin from its marketplace, and the local node.
+ * Each try list is in order: refresh before adding, update before installing,
+ * since the other way round the first one fails or does nothing on a rerun.
+ */
 const CLIS = [
   {
     bin: "claude",
     name: "Claude Code",
-    connect(local) {
-      run("claude", ["plugin", "marketplace", "add", MARKETPLACE]);
-      run("claude", ["plugin", "marketplace", "update", "taasky"]);
-      // An update when it is there already (an install would leave it as it is).
-      const plugin = first("claude", ["plugin", "update", PLUGIN], ["plugin", "install", PLUGIN, "--scope", "user"]);
-      // An earlier connect added the node by URL: replace it.
-      run("claude", ["mcp", "remove", "--scope", "user", LOCAL]);
-      const node = run("claude", ["mcp", "add", "--scope", "user", LOCAL, "--", ...local]);
-      return [
-        plugin ? "the Taasky plugin, with its skills" : `the plugin failed: claude plugin install ${PLUGIN}`,
-        node ? LOCAL : `${LOCAL} failed: claude mcp add --scope user ${LOCAL} -- ${local.join(" ")}`,
-      ];
-    },
-    disconnect() {
-      return [
-        run("claude", ["plugin", "uninstall", PLUGIN, "--scope", "user"]) && "the Taasky plugin",
-        run("claude", ["mcp", "remove", "--scope", "user", LOCAL]) && LOCAL,
-      ];
-    },
+    marketplace: [
+      ["plugin", "marketplace", "update", "taasky"],
+      ["plugin", "marketplace", "add", MARKETPLACE],
+    ],
+    plugin: [
+      ["plugin", "update", PLUGIN],
+      ["plugin", "install", PLUGIN, "--scope", "user"],
+    ],
+    unplugin: ["plugin", "uninstall", PLUGIN, "--scope", "user"],
+    mcp: ["mcp", "add", "--scope", "user", LOCAL, "--"],
+    unmcp: ["mcp", "remove", "--scope", "user", LOCAL],
   },
   {
     bin: "codex",
     name: "Codex",
-    connect(local) {
-      run("codex", ["plugin", "marketplace", "add", MARKETPLACE]);
-      run("codex", ["plugin", "marketplace", "upgrade", "taasky"]);
-      const plugin = run("codex", ["plugin", "add", PLUGIN]);
-      run("codex", ["mcp", "remove", LOCAL]);
-      const node = run("codex", ["mcp", "add", LOCAL, "--", ...local]);
-      return [
-        plugin ? "the Taasky plugin, with its skills" : `the plugin failed: codex plugin add ${PLUGIN}`,
-        node ? LOCAL : `${LOCAL} failed: codex mcp add ${LOCAL} -- ${local.join(" ")}`,
-      ];
-    },
-    disconnect() {
-      return [
-        run("codex", ["plugin", "remove", PLUGIN]) && "the Taasky plugin",
-        run("codex", ["mcp", "remove", LOCAL]) && LOCAL,
-      ];
-    },
+    marketplace: [
+      ["plugin", "marketplace", "upgrade", "taasky"],
+      ["plugin", "marketplace", "add", MARKETPLACE],
+    ],
+    plugin: [["plugin", "add", PLUGIN]],
+    unplugin: ["plugin", "remove", PLUGIN],
+    mcp: ["mcp", "add", LOCAL, "--"],
+    unmcp: ["mcp", "remove", LOCAL],
   },
 ];
+
+function connectCli(cli, local) {
+  first(cli.bin, cli.marketplace);
+  const plugin = first(cli.bin, cli.plugin);
+  // An earlier connect added the node by URL: replace it.
+  run(cli.bin, cli.unmcp);
+  const node = first(cli.bin, [[...cli.mcp, ...local]]);
+  return [
+    plugin ? `the plugin failed: ${plugin}` : "the Taasky plugin, with its skills",
+    node ? `${LOCAL} failed: ${node}` : LOCAL,
+  ];
+}
+
+const disconnectCli = (cli) => [run(cli.bin, cli.unplugin) && "the Taasky plugin", run(cli.bin, cli.unmcp) && LOCAL];
 
 /**
  * Clients configured by a JSON file with `mcpServers`. Cursor takes both
@@ -124,17 +119,44 @@ function readConfig(file) {
   }
 }
 
-/** False when the file can't be read as JSON: then it is the person's to edit. */
-function writeServers(file, update) {
-  const config = readConfig(file);
-  if (!config) return false;
-  config.mcpServers = update({ ...config.mcpServers });
-  writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
-  return true;
+const writeConfig = (file, config) => writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
+
+function connectFile(client, local) {
+  const servers = client.servers(local);
+  const config = readConfig(client.file);
+  if (!config) {
+    return [`${client.file} isn't plain JSON, left as it is; add to its mcpServers: ${JSON.stringify(servers)}`];
+  }
+  config.mcpServers = { ...config.mcpServers, ...servers };
+  writeConfig(client.file, config);
+  return [Object.keys(servers).join(" and "), client.note];
 }
 
-/** A client is there when its config directory is. */
-const installed = ({ file }) => existsSync(dirname(file));
+function disconnectFile(client) {
+  const config = readConfig(client.file);
+  const names = Object.keys(client.servers([])).filter((n) => config?.mcpServers?.[n]);
+  if (!names.length) return [];
+  for (const n of names) delete config.mcpServers[n];
+  writeConfig(client.file, config);
+  return [names.join(" and ")];
+}
+
+/** The clients on this machine: a CLI on the PATH, or a config directory. */
+function present() {
+  const onPath = (bin) => run("which", [bin]);
+  return [
+    ...CLIS.filter((c) => onPath(c.bin)).map((c) => ({
+      name: c.name,
+      connect: (l) => connectCli(c, l),
+      disconnect: () => disconnectCli(c),
+    })),
+    ...FILES.filter((c) => existsSync(dirname(c.file))).map((c) => ({
+      name: c.name,
+      connect: (l) => connectFile(c, l),
+      disconnect: () => disconnectFile(c),
+    })),
+  ];
+}
 
 function report(name, lines) {
   const done = lines.filter(Boolean);
@@ -142,32 +164,10 @@ function report(name, lines) {
 }
 
 export function connect(local) {
-  for (const cli of CLIS) {
-    if (!onPath(cli.bin)) continue;
-    report(cli.name, cli.connect(local));
-  }
-  for (const client of FILES.filter(installed)) {
-    const servers = client.servers(local);
-    if (!writeServers(client.file, (s) => ({ ...s, ...servers }))) {
-      report(client.name, [`${client.file} isn't plain JSON, left as it is; add to its mcpServers: ${JSON.stringify(servers)}`]);
-      continue;
-    }
-    report(client.name, [Object.keys(servers).join(" and "), client.note]);
-  }
+  for (const c of present()) report(c.name, c.connect(local));
   console.log("Sessions already open pick it up after a restart.");
 }
 
 export function disconnect() {
-  for (const cli of CLIS) {
-    if (!onPath(cli.bin)) continue;
-    report(cli.name, cli.disconnect());
-  }
-  for (const client of FILES.filter((c) => existsSync(c.file))) {
-    const names = Object.keys(client.servers([])).filter((n) => readConfig(client.file)?.mcpServers?.[n]);
-    writeServers(client.file, (s) => {
-      for (const n of names) delete s[n];
-      return s;
-    });
-    report(client.name, [names.join(" and ")]);
-  }
+  for (const c of present()) report(c.name, c.disconnect());
 }
