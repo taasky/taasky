@@ -53,6 +53,7 @@ import { counterWithin } from "./protocol/suggest.js";
 import {
   COMMON_GROUND_SCHEMA,
   isUnderstanding,
+  isUnderstandingRoom,
   understandingMarkdown,
 } from "./protocol/understanding.js";
 import { shownForAgent } from "./shown.js";
@@ -173,8 +174,19 @@ const SKILL_LINE = `The Taasky skill is at version ${SKILL_VERSION}: ${SKILL_URL
  * Sent once, at initialize. Everything an agent would otherwise learn from
  * error messages, in the order it needs it.
  */
-export const instructions = (keyless: boolean) =>
-  [INTRO, keyless ? KEYLESS_FLOW : SIGNED_IN_FLOW, LIMITS, SCHEMA_RULES, SKILL_LINE].join("\n\n");
+export const instructions = (keyless: boolean, oneHuman = false) =>
+  [
+    // First: Claude Code keeps only the first 2048 characters of the instructions.
+    ...(oneHuman ? [ONE_HUMAN_NOTE] : []),
+    INTRO,
+    keyless ? KEYLESS_FLOW : SIGNED_IN_FLOW,
+    LIMITS,
+    SCHEMA_RULES,
+    SKILL_LINE,
+  ].join("\n\n");
+
+/** A node on one person's own machine (§8.2): it overrides the confirmation steps above. */
+const ONE_HUMAN_NOTE = `On this machine every seat in a room is your human: two of their own sessions settling something between them. So nothing here waits for a confirmation: approve, reject and cancel go out at once (status "sent"), and terms you table stand as yours, so the other session's approve agrees the room. Tell your human the outcome in the chat. To check what two sessions agree on (why something broke, what to do next), open with template "common_ground".`;
 
 /**
  * What each tool does to the world, for clients that ask before every call
@@ -246,9 +258,11 @@ export function createServer(
   a: Analytics = noAnalytics,
 ) {
   const keyless = !("userId" in caller);
+  // Every seat is the same person (§8.2): nothing waits for a confirmation.
+  const oneHuman = env.ONE_HUMAN === "1";
   const server = new McpServer(
     { name: "taasky", version: manifest.version },
-    { instructions: instructions(keyless) },
+    { instructions: instructions(keyless, oneHuman) },
   );
 
   // A keyless agent names its seat by room_token; a signed-in one, the room.
@@ -395,7 +409,10 @@ export function createServer(
           .optional()
           .describe(
             "common_ground: a shared understanding, not a deal. One list of findings both " +
-              "agents edit (topic, sides, findings, conclusion, next_steps, all text). Nothing " +
+              "agents edit: topic, sides, findings, conclusion, next_steps, all text; sides, " +
+              "findings and next_steps are arrays of strings, each string at most 500 " +
+              "characters. Each list you table stands as yours: the other side's approve " +
+              "closes the room. Nothing " +
               "in it commits anyone, so approve, reject and cancel go out at once, with no " +
               "confirmation by your human. The schema is supplied; pass subject_schema only " +
               "to relabel those same fields in your human's language.",
@@ -536,6 +553,8 @@ export function createServer(
               await loadRoom(env.DB, id, userId, now),
               { verdict: "offer", subject },
               now,
+              false,
+              oneHuman,
             )
           : null;
 
@@ -579,8 +598,8 @@ export function createServer(
             ? "Give your human the invite link to pass to the other side, and human_url: " +
               "their page of this room, where they can follow the list. Nothing waits for " +
               "their confirmation here: tell them in the chat what the list says when it is " +
-              "agreed. After each move, wait for the other side with negotiation_read and " +
-              "wait: true."
+              "agreed. After each move, and once the invite is out, " +
+              WAIT_HINT
             : (options
                 ? "Send the invite link to the other party. They pick one of your options, and " +
                   "their pick is their yes: you then approve it with negotiation_respond, and " +
@@ -1061,12 +1080,20 @@ export function createServer(
             "final goes with offer or counter: there are no new terms to stand by",
           );
         }
-        const moved = await playMove(env.DB, loaded, { verdict, subject, deadline }, now);
+        const moved = await playMove(
+          env.DB,
+          loaded,
+          { verdict, subject, deadline },
+          now,
+          false,
+          oneHuman,
+        );
         await notifier.roomChanged(id, userId);
         const circling = await noticeCircling(env.DB, notifier, id);
-        // Null: nothing to confirm (§8.1), the final stands at once.
-        const asked =
-          final && moved.subject_hash
+        // Null: nothing to confirm (§8.1). There every list stands as tabled, final or not.
+        const asked = !needsHuman(loaded.parties, "approve", oneHuman)
+          ? null
+          : final && moved.subject_hash
             ? await requestStandingApproval(
                 env.DB,
                 notifier,
@@ -1082,18 +1109,20 @@ export function createServer(
         return ok({
           room: id,
           ...moved,
-          ...(asked === null && {
-            final: {
-              status: "standing",
-              note: "You stand by these terms: the other side's approve of them agrees the room.",
-            },
-          }),
+          ...(asked === null &&
+            moved.subject_hash && {
+              final: {
+                status: "standing",
+                note: "You stand by these terms: the other side's approve of them agrees the room.",
+              },
+            }),
           ...(standing && {
             final: {
               status: "pending_human",
               card: standing.card,
               human_url: standing.humanUrl,
-              ...(!standing.delivery.delivered && { bind_url: standing.delivery.bind_url }),
+              ...(!standing.delivery.delivered &&
+                standing.delivery.bind_url && { bind_url: standing.delivery.bind_url }),
               note:
                 "Your human is asked to stand by these terms. Once they confirm, the other " +
                 "side's approve agrees the room; you do not approve them again.",
@@ -1114,8 +1143,7 @@ export function createServer(
             : moved.state === "draft"
               ? "The invitation now carries these terms. The other side answers them when " +
                 "they join; check back with negotiation_read."
-              : "The turn has passed to the other party. Check back with negotiation_read; " +
-                "wait: true holds until they move.",
+              : `The turn has passed to the other party. ${WAIT_HINT}`,
         });
       }),
   );
@@ -1166,8 +1194,8 @@ export function createServer(
       const { userId, roomId: id } = await seat(args);
       const now = new Date();
       const loaded = await loadRoom(env.DB, id, userId, now);
-      if (!needsHuman(loaded.parties, req.verdict)) {
-        const moved = await playMove(env.DB, loaded, req, now);
+      if (!needsHuman(loaded.parties, req.verdict, oneHuman)) {
+        const moved = await playMove(env.DB, loaded, req, now, false, oneHuman);
         await notifier.roomChanged(id, userId);
         // Approving, turning down or withdrawing leaves the terms on the table as they were.
         const subject = termsOnTable(loaded.history)?.subject;
@@ -1176,7 +1204,10 @@ export function createServer(
           status: "sent",
           ...moved,
           ...(moved.state === "agreed" &&
-            subject && { summary_md: understandingMarkdown(subject, moved.state) }),
+            subject &&
+            isUnderstandingRoom(loaded.parties) && {
+              summary_md: understandingMarkdown(subject, moved.state),
+            }),
           ...sentNoConfirm(moved.state),
         });
       }
@@ -1207,7 +1238,7 @@ export function createServer(
           : "Not sent yet. Confirm on your page, the link I am sending. Nothing is agreed until you do.",
         card,
         human_url: await roomUrlFor(env.DB, appBase(env), userId, id),
-        ...(!delivery.delivered && { bind_url: delivery.bind_url }),
+        ...(!delivery.delivered && delivery.bind_url && { bind_url: delivery.bind_url }),
         next:
           (delivery.delivered
             ? "Tell your human a confirmation is waiting in Telegram: only they can answer it there"
@@ -1224,15 +1255,15 @@ export function createServer(
 function sentNoConfirm(state: string) {
   if (state === "agreed")
     return {
-      for_your_human: "Agreed: both sides hold this list.",
+      for_your_human: "Agreed by both sides.",
       next:
-        "The list is agreed. Tell your human what it says and what you conceded; summary_md " +
-        "is the list as Markdown, to paste where it is needed.",
+        "The room is agreed. Tell your human what it says and what you conceded; summary_md, " +
+        "when present, is the list as Markdown, to paste where it is needed.",
     };
   if (state === "awaiting")
     return {
       for_your_human: "Approved on this side. Nothing is agreed until the other side approves too.",
-      next: "Wait for the other side with negotiation_read and wait: true.",
+      next: `Not closed yet: the other side still has to approve these terms. ${WAIT_HINT}`,
     };
   return {
     for_your_human: "The room is closed.",
@@ -1268,6 +1299,12 @@ async function waitForChange(d1: D1Database, { room, me }: LoadedRoom) {
     next: "Nothing new yet. Call negotiation_read with wait: true again to keep waiting.",
   };
 }
+
+/** How to wait for the other side, whether or not the agent outlives its turn. */
+const WAIT_HINT =
+  "Keep waiting for them until the room is agreed. With background tasks (Claude Code), run " +
+  "a background command that exits when <human_url>/v changes: it wakes you even after your " +
+  "turn ends. Otherwise call negotiation_read with wait: true, again after each changed: false.";
 
 const UNDERSTANDING_NOTE =
   "A shared understanding, not a deal: nobody is committed by it, so approve, reject and " +

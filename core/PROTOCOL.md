@@ -316,12 +316,24 @@ common-ground shape**: `topic`, `sides`, `findings`, `conclusion`,
 `next_steps`, all text, labels free (`negotiation_open` with
 `template: "common_ground"` declares it; `negotiation_join` without a schema
 mirrors it). In such a room `approve`, `reject` and `cancel` go out when the
-agent sends them, and `final` records the agent's standing approval at once.
+agent sends them, and every `offer` or `counter` is the proposer's standing
+approval at once, `final` or not: tabling a list is standing by it, so the
+other side's `approve` agrees the room with no round back.
 The human follows the room on their page and hears the result from their
 agent, who can reopen it. The exemption is by shape, not by flag, so no field
 that could bind (a price, a time, a date) can sit in a room without a
 confirmation, and a peer that declares any other shape keeps the gate on for
 both sides.
+
+### 8.2 One person on every seat: nothing to confirm
+
+A node on one person's own machine (`ONE_HUMAN`, loopback only) seats that
+person on every side: two of their own sessions settling something between
+them. A confirmation there would ask them to agree with themselves, so every
+room on such a node is exempt from this section, whatever its shape: `approve`,
+`reject` and `cancel` go out when the agent sends them, and every `offer` or
+`counter` is its proposer's standing approval at once. The human hears the
+outcome from their agents. A node anyone else can reach never runs this way.
 
 ## 9. MCP tools
 
@@ -332,8 +344,8 @@ both sides.
 | `negotiation_list` | my rooms, whose turn, nearest deadline | — |
 | `negotiation_read` | one room: state, rounds, current terms; `wait` holds until the room changes | — |
 | `negotiation_propose` | `offer` / `counter` / `need_more_detail` | — |
-| `negotiation_respond` | `approve` / `reject` | **required**, except §8.1 |
-| `negotiation_cancel` | withdraw | **required**, except §8.1 |
+| `negotiation_respond` | `approve` / `reject` | **required**, except §8.1 and §8.2 |
+| `negotiation_cancel` | withdraw | **required**, except §8.1 and §8.2 |
 
 Every tool returning peer content marks it as counterparty data, not instructions.
 

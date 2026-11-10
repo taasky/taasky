@@ -624,6 +624,9 @@ function findingList(items: unknown[]): string {
     .join("")}</ol>`;
 }
 
+/** Longer than this, a value is a paragraph rather than a term. */
+const PROSE_CHARS = 80;
+
 function factRows(schema: SubjectSchema, subject: Record<string, unknown>): string {
   return Object.entries(schema)
     .filter(([field]) => subject[field] !== undefined)
@@ -633,10 +636,11 @@ function factRows(schema: SubjectSchema, subject: Record<string, unknown>): stri
       if (counts) {
         return `<div><dt>${escapeHtml(decl.label)} · ${escapeHtml(counts)}</dt><dd class="findings">${findingList(v as unknown[])}</dd></div>`;
       }
-      const shown = (Array.isArray(v) ? v : [v])
-        .map((item) => showValue(decl.type, item))
-        .join("<br>");
-      return `<div><dt>${escapeHtml(decl.label)}</dt><dd>${shown}</dd></div>`;
+      const items = Array.isArray(v) ? v : [v];
+      const shown = items.map((item) => showValue(decl.type, item)).join("<br>");
+      // The display serif suits a time or a price; a paragraph reads in the body face.
+      const prose = items.some((item) => typeof item === "string" && item.length > PROSE_CHARS);
+      return `<div><dt>${escapeHtml(decl.label)}</dt><dd${prose ? ' class="prose"' : ""}>${shown}</dd></div>`;
     })
     .join("");
 }
@@ -1041,6 +1045,7 @@ async function showRoom(
         page(roomName(room.id).name, `${review}${LOCAL_TIME_SCRIPT}${REVIEW_LIVE_SCRIPT}`, {
           refreshSeconds: done ? undefined : 30,
           bodyClass: "wide",
+          work: true,
         }),
         error ? 422 : 200,
       );
@@ -1226,7 +1231,10 @@ async function showRoom(
 
   if (readOnly && !done) {
     const note = [
-      `<p class="eyebrow quiet" style="margin:0">Your agent negotiates this</p>
+      deps.oneHuman
+        ? `<p class="eyebrow quiet" style="margin:0">Your sessions settle this</p>
+  <p>Both sides are you, so nothing waits for your yes: your agent tells you what came of it.</p>`
+        : `<p class="eyebrow quiet" style="margin:0">Your agent negotiates this</p>
   <p>Accepting, turning down or withdrawing waits for your yes. It shows up on this page.</p>`,
     ];
     if (deps.bindUrl && !(await db.getChannel(deps.DB, link.user_id))) {
@@ -1264,7 +1272,10 @@ async function showRoom(
       roomName(room.id).name,
       `<div class="split" data-v="${version}" data-wait="${waiting ? 1 : 0}"><section>${lead.join("\n")}</section><aside>${side.join("\n")}</aside></div>${LOCAL_TIME_SCRIPT}${TIMERANGE_SCRIPT}${LIVE_SCRIPT}`,
       // Without JavaScript, never reload under a form someone may be filling in.
-      { refreshSeconds: waiting && (readOnly || !yourTurn) ? 30 : undefined },
+      {
+        refreshSeconds: waiting && (readOnly || !yourTurn) ? 30 : undefined,
+        work: readOnly,
+      },
     ),
     error ? 422 : 200,
   );
@@ -1338,7 +1349,7 @@ async function move(deps: WebDeps, link: db.WebLink, form: FormData): Promise<Re
       req = { verdict: action, subject: draft };
     } else return showRoom(deps, link, "Unknown action.");
 
-    await playMove(deps.DB, loaded, req, now, true);
+    await playMove(deps.DB, loaded, req, now, true, deps.oneHuman);
   } catch (e) {
     if (e instanceof MoveError || e instanceof SubjectError) {
       return showRoom(deps, link, `Not sent: ${forPeople(e.message, schema)}.`, draft);

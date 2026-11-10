@@ -50,10 +50,11 @@ export interface Alternative {
 /**
  * Whether the card reached the human. Before their channel is bound it cannot:
  * the agent gets a link to hand them, and binding it delivers the card (§10).
+ * With no channel at all there is nothing to bind.
  * Either way the card also waits on the human's own page of the room
  * (human_url), so an unbound channel never blocks a confirmation.
  */
-export type Delivery = { delivered: true } | { delivered: false; bind_url: string };
+export type Delivery = { delivered: true } | { delivered: false; bind_url?: string };
 
 export interface Notifier {
   requestConfirmation(userId: string, card: ConfirmationCard): Promise<Delivery>;
@@ -83,11 +84,15 @@ export interface Notifier {
   circling(roomId: string): Promise<void>;
 }
 
-/** Local development: the card goes to the log and is answered via /dev/confirm. */
+/**
+ * No channel (a node without Telegram, local development): the card goes to the
+ * log and waits on the human's page, or /dev/confirm in dev mode. Not
+ * delivered, and nothing to bind: the agent sends the page.
+ */
 export const logNotifier: Notifier = {
   async requestConfirmation(userId, card) {
     console.log(JSON.stringify({ event: "confirmation_requested", user: userId, card }));
-    return { delivered: true };
+    return { delivered: false };
   },
   async roomChanged(roomId, actorUserId) {
     console.log(JSON.stringify({ event: "room_changed", room: roomId, actor: actorUserId }));

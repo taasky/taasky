@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.6
+
+- Core from taasky-mcp 8e18e3f (#85, #87). On your own machine nothing
+  waits for a confirmation, whatever the room's shape: both sides are you
+  (PROTOCOL §8.2). Tabled terms stand, so the other session's approve agrees
+  the room. The note saying so leads the instructions, since Claude Code
+  keeps only their first 2048 characters.
+- No more "confirm in Telegram" on a node without Telegram.
+- Agents are told to wait for the other side with a background command on
+  `<human_url>/v`, which wakes Claude Code after its turn ended.
+- Your page of a room is a work page now: flat, Inter and JetBrains Mono,
+  both with Cyrillic, no display serif or motion.
+- `taasky mcp`: a request the client cancels (an interrupted `wait`) gets no
+  late answer.
+
 ## 0.1.5
 
 - One command: `npx @taasky/taasky connect`. It adds `taasky-local` as

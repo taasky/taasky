@@ -151,7 +151,7 @@ const STYLE = `
   .findings-box summary { cursor: pointer; font: 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .22em; color: var(--champagne); padding: .2rem 0; }
   .findings-box[open] summary { margin-bottom: .9rem; }
   .findings-box dd { margin: 0; }
-  .facts dd.findings { font: 400 1rem/1.5 var(--sans); }
+  .facts dd.findings, .facts dd.prose { font: 400 1rem/1.5 var(--sans); }
   .facts dd.findings ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
   .facts dd.findings .fid { font: 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--champagne); margin-right: .35rem; }
   .facts dd.findings li.agreed .fid { color: var(--moon-subtle); }
@@ -505,6 +505,156 @@ const STYLE = `
 `;
 
 /** The mark: two agents as two halves of one sphere (taasky-portal Logo.tsx). */
+/**
+ * The person's own page of a room (/r): a work tool opened from a terminal
+ * session, so it reads like one. Same palette as the brand, none of its
+ * ceremony: one flat surface, Inter for text and JetBrains Mono for labels
+ * (both cover Cyrillic, so a Russian page reads in one voice), no display
+ * serif, no grain, no motion, dense type.
+ */
+const WORK_STYLE = `
+  @font-face { font-family: "Inter"; src: url(/fonts/Inter.woff2) format("woff2"); font-weight: 100 900; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url(/fonts/JetBrainsMono.woff2) format("woff2"); font-weight: 100 800; font-display: swap; }
+  :root {
+    color-scheme: dark;
+    --night: #1a0f1a; --raised: #221522; --rule: #3a2738; --rule-soft: #2c1d2b;
+    --moon: #f3ece2; --muted: #bfb1b7; --subtle: #8d7d87;
+    --champagne: #d9b98a; --accent: #6f5ce8; --you: #f2a046; --them: #8f84f4;
+    --ok: #7fd1a6; --bad: #f08a7e; --warn: #e3b55a;
+    --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; animation: none !important; transition: none !important; }
+  html, body { background: var(--night); }
+  body { margin: 0; font: 14px/1.55 var(--sans); color: var(--moon); -webkit-font-smoothing: antialiased; }
+  a { color: var(--champagne); }
+  ::selection { background: color-mix(in oklab, var(--accent) 40%, transparent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sheet { min-height: 100vh; display: flex; flex-direction: column; }
+  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+
+  .top { border-bottom: 1px solid var(--rule); }
+  .top .wrap { height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  a.brand { display: flex; align-items: center; gap: .5rem; color: var(--moon); text-decoration: none; font: 600 13px/1 var(--sans); }
+  a.brand svg { width: 18px; height: 18px; }
+  .top .about { font: 12px/1 var(--mono); color: var(--subtle); text-decoration: none; }
+  .top .about:hover { color: var(--moon); }
+  .local-mode { font: 12px/1.4 var(--mono); color: var(--champagne); background: var(--raised); border-bottom: 1px solid var(--rule); padding: .4rem 20px; text-align: center; }
+  .local-mode b { font-weight: 600; margin-right: .6rem; }
+  main.wrap { flex: 1; padding-top: 20px; padding-bottom: 40px; }
+  footer .wrap { border-top: 1px solid var(--rule-soft); padding-top: 12px; padding-bottom: 16px; display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font: 11px/1.5 var(--mono); color: var(--subtle); }
+  footer a { color: inherit; } footer .links { display: flex; gap: 1rem; }
+
+  h1 { font: 600 20px/1.35 var(--sans); margin: 0 0 .4rem; text-wrap: pretty; }
+  h1 em { font-style: normal; color: var(--champagne); }
+  h2 { font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--subtle); margin: 1.4rem 0 .5rem; }
+  p { margin: 0 0 .6rem; }
+  small { font-size: 12px; color: var(--subtle); }
+  .eyebrow { font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--subtle); margin: 0 0 .5rem; }
+  .eyebrow.quiet { color: var(--subtle); }
+  .lede { color: var(--muted); }
+  .aside { color: var(--subtle); font-size: 13px; }
+  .notice { border: 1px solid color-mix(in oklab, var(--bad) 50%, var(--rule)); color: var(--bad); padding: .5rem .75rem; border-radius: 4px; }
+
+  /* Two columns: the matter on the left, your call and the history on the right. */
+  .split, .review { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+  .split > section, .review-main { min-width: 0; }
+  .split > aside, .review-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 12px; }
+  @media (max-width: 880px) {
+    .split, .review { grid-template-columns: minmax(0, 1fr); }
+    .split > aside, .review-side { position: static; }
+  }
+  .panel, .terms, .moves, .side-note, .card-ask, .review-side > section, .points, .calendar {
+    background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; margin: 0 0 12px;
+  }
+  .review-side > section, .split > aside > * { margin: 0; }
+  .terms-head { display: flex; justify-content: space-between; gap: .5rem; font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--subtle); margin: 0 0 .6rem; }
+
+  /* Whose move: one line, not a stage. */
+  .duo { display: flex; align-items: center; gap: .5rem; margin: .8rem 0 12px; font: 12px/1 var(--mono); }
+  .duo .bloom, .duo .wave, .duo .status, .seal { display: none; }
+  .party { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .6rem; border: 1px solid var(--rule); border-radius: 4px; color: var(--subtle); }
+  .party .sphere { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .5; }
+  .party.you .sphere { background: var(--you); } .party.them .sphere { background: var(--them); }
+  .party .tag { display: none; }
+  .party.live { color: var(--moon); border-color: var(--champagne); }
+  .party.live .sphere { opacity: 1; }
+  .party.live .tag { display: inline; color: var(--champagne); }
+  .party.live .tag::before { content: "· "; color: var(--subtle); }
+  .duo.agreed .party { color: var(--ok); border-color: color-mix(in oklab, var(--ok) 45%, var(--rule)); }
+
+  /* The terms. */
+  .facts { margin: 0; display: grid; gap: 10px; }
+  .facts > div { display: grid; gap: 2px; }
+  .facts dt { font: 11px/1.4 var(--mono); color: var(--subtle); }
+  .facts dd { margin: 0; font: 500 15px/1.45 var(--sans); color: var(--moon); overflow-wrap: anywhere; }
+  .facts dd.prose, .facts dd.findings { font: 400 14px/1.55 var(--sans); }
+  .facts dd.changed { color: var(--champagne); }
+  .facts dd.findings ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+  .fid { font: 12px/1.5 var(--mono); color: var(--warn); margin-right: .35rem; }
+  .facts dd.findings small { display: block; }
+  .terms-foot, .picture { margin-top: .8rem; color: var(--muted); font-size: 13px; }
+
+  /* The history. */
+  .moves ol, .went { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .moves li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding-top: 8px; border-top: 1px solid var(--rule-soft); }
+  .moves li:first-child { border-top: 0; padding-top: 0; }
+  .moves .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--you); align-self: center; }
+  .moves li.them .dot { background: var(--them); }
+  .moves .verb { margin: 0; font: 600 13px/1.4 var(--sans); }
+  .moves .what { margin: .15rem 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .moves .label { font: 11px/1.4 var(--mono); color: var(--subtle); margin-right: .3rem; }
+  .moves .when, .went time { font: 11px/1.4 var(--mono); color: var(--subtle); white-space: nowrap; }
+  .went li { padding-left: 14px; position: relative; color: var(--muted); font-size: 13px; }
+  .went li::before { content: ""; position: absolute; left: 0; top: .5em; width: 7px; height: 7px; border-radius: 50%; background: var(--you); }
+  .went li.them::before { background: var(--them); }
+  .went small { display: block; }
+  .who { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .who li { padding-left: 14px; position: relative; }
+  .who li::before { content: ""; position: absolute; left: 0; top: .5em; width: 7px; height: 7px; border-radius: 50%; background: var(--you); }
+  .who li.them::before { background: var(--them); }
+
+  /* Common ground: the list. */
+  .review-main .topic { font: 12px/1.5 var(--mono); color: var(--subtle); margin: 0 0 .3rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: .6rem 0 12px; }
+  .chip { font: 12px/1 var(--mono); padding: .35rem .5rem; border-radius: 4px; border: 1px solid var(--rule); color: var(--muted); }
+  .chip.agreed { color: var(--ok); border-color: color-mix(in oklab, var(--ok) 40%, var(--rule)); }
+  .chip.disputed { color: var(--bad); border-color: color-mix(in oklab, var(--bad) 40%, var(--rule)); }
+  .chip.open, .chip.proposed { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 40%, var(--rule)); }
+  .points { list-style: none; padding: 0; overflow: hidden; }
+  .points li { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 2px 12px; padding: 10px 14px; border-top: 1px solid var(--rule-soft); }
+  .points li:first-child { border-top: 0; }
+  .points .fid { grid-row: span 3; }
+  .points .agreed .fid, .facts dd.findings li.agreed .fid { color: var(--ok); }
+  .points .disputed .fid { color: var(--bad); }
+  .points .claim { font-weight: 500; }
+  .points .why { grid-column: 2; color: var(--muted); font-size: 13px; }
+  .next { margin: 0; padding-left: 1.1rem; display: grid; gap: 4px; }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 16px; }
+    .points li { grid-template-columns: minmax(0, 1fr); }
+    .points .fid { grid-row: auto; }
+    .points .why { grid-column: 1; }
+    .moves li { grid-template-columns: 10px minmax(0, 1fr); }
+    .moves .when { grid-column: 2; }
+  }
+
+  /* Your call. */
+  .card-ask { border-left: 3px solid var(--champagne); }
+  .card-ask.quiet, .card-ask.settled { border-left-color: var(--rule); }
+  .card-ask.settled .eyebrow { color: var(--ok); }
+  .card-ask ul { margin: 0 0 .6rem; padding-left: 1.1rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: .4rem 0 .6rem; }
+  .actions form { margin: 0; }
+  button, .button { font: 500 13px/1 var(--sans); height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--rule); background: transparent; color: var(--moon); cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; text-decoration: none; }
+  button:hover, .button:hover { border-color: var(--muted); }
+  button.primary, .button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.ghost { color: var(--subtle); }
+  .arrow { font-family: var(--mono); }
+  .calendar-links { display: flex; flex-wrap: wrap; gap: 6px; }
+  form { margin: 0; }
+`;
+
 const LOGO = `<svg width="30" height="30" viewBox="3.3 3.55 24.9 24.9" aria-hidden="true">
 <defs><linearGradient id="la" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="#ffc24d"/><stop offset="1" stop-color="#ff7a1a"/></linearGradient>
 <linearGradient id="lb" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="#8f9bff"/><stop offset="1" stop-color="#4338ca"/></linearGradient>
@@ -566,6 +716,8 @@ export interface PageOptions {
   preview?: { title: string; description: string; image: string };
   /** A class on <body>, for styles only one kind of page uses. */
   bodyClass?: string;
+  /** A work page (WORK_STYLE): the person's own page of a room, opened from a terminal session. */
+  work?: boolean;
 }
 
 function previewTags(preview: PageOptions["preview"]): string {
@@ -606,11 +758,15 @@ export function page(title: string, body: string, opts: PageOptions = {}): strin
 <html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><meta name="theme-color" content="#4a2f4a">${refresh}${previewTags(opts.preview)}
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="preload" href="/fonts/InstrumentSerif.woff2" as="font" type="font/woff2" crossorigin>
-<title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
+${opts.work ? "" : '<link rel="preload" href="/fonts/InstrumentSerif.woff2" as="font" type="font/woff2" crossorigin>'}
+<title>${escapeHtml(title)}</title><style>${opts.work ? WORK_STYLE : STYLE}</style></head>
 <body${opts.bodyClass ? ` class="${opts.bodyClass}"` : ""}><div class="sheet">
 <header class="top">${localMode ? LOCAL_BANNER : ""}<div class="wrap"><a class="brand" href="https://taasky.ai">${LOGO}<span>Taasky</span></a>
-<a class="button inline" href="https://taasky.ai" style="height:2.5rem;padding:0 1.2rem;font-size:14px">What is Taasky?</a></div></header>
+${
+  opts.work
+    ? '<a class="about" href="https://taasky.ai">What is Taasky?</a>'
+    : '<a class="button inline" href="https://taasky.ai" style="height:2.5rem;padding:0 1.2rem;font-size:14px">What is Taasky?</a>'
+}</div></header>
 <main class="wrap${opts.narrow ? " narrow" : ""}">${body}</main>
 <footer><div class="wrap"><span>Your agent settles things with anyone. You say yes.</span><span class="links"><a href="https://taasky.ai/terms/">Terms</a><a href="https://taasky.ai/privacy/">Privacy</a><a href="https://taasky.ai">taasky.ai</a></span></div></footer>
 </div></body></html>`;

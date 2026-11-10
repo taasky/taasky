@@ -153,9 +153,15 @@ export interface MoveResult {
 /**
  * Whether this move waits for a human (§8). Not in a shared understanding
  * (§8.1): a list of findings commits no one, so there is nothing to confirm.
+ * Not on one person's own machine either (`oneHuman`, §8.2): every seat is
+ * them, so no move commits them to anyone else.
  */
-export function needsHuman(parties: { subject_schema: SubjectSchema }[], verdict: Verdict) {
-  return isHumanGated(verdict) && !isUnderstandingRoom(parties);
+export function needsHuman(
+  parties: { subject_schema: SubjectSchema }[],
+  verdict: Verdict,
+  oneHuman = false,
+) {
+  return isHumanGated(verdict) && !oneHuman && !isUnderstandingRoom(parties);
 }
 
 export async function playMove(
@@ -166,7 +172,7 @@ export async function playMove(
   releasedByHuman = false,
   oneHuman = false,
 ): Promise<MoveResult> {
-  if (needsHuman(loaded.parties, req.verdict) && !releasedByHuman) {
+  if (needsHuman(loaded.parties, req.verdict, oneHuman) && !releasedByHuman) {
     throw new MoveError(`${req.verdict} needs your human's confirmation`);
   }
   const plan = await planMove(
@@ -180,7 +186,14 @@ export async function playMove(
     assertWithinLimits(loaded.me.subject_schema, loaded.me.limits ?? null, plan.message.subject);
   }
   // A pick holds only until its picker moves again (pickOption records it after).
-  if (loaded.me.standing_hash) await db.setStandingApproval(d1, loaded.me.id, null);
+  // Where nothing waits for a human (§8.1, §8.2), tabling terms is standing by
+  // them: the other side's approve closes the room, with no round back.
+  const stands =
+    (plan.message.verdict === "offer" || plan.message.verdict === "counter") &&
+    !needsHuman(loaded.parties, "approve", oneHuman)
+      ? (plan.message.subject_hash ?? null)
+      : null;
+  if (loaded.me.standing_hash || stands) await db.setStandingApproval(d1, loaded.me.id, stands);
   const msg = messageId();
   const { seq } = await db.applyMove(
     d1,
