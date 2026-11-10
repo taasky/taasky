@@ -118,16 +118,22 @@ export async function stdio(port, args) {
   const headers = { "content-type": "application/json", accept: "application/json, text/event-stream" };
   const write = (m) => process.stdout.write(`${m}\n`);
 
-  async function post(body, retry = true) {
+  async function post(body, signal, retry = true) {
     try {
-      return await fetch(`${url}/mcp`, { method: "POST", headers, body });
+      return await fetch(`${url}/mcp`, { method: "POST", headers, body, signal });
     } catch (e) {
       // The node went away mid-session (killed, a reboot of its own): bring it back once.
-      if (!retry) throw e;
+      if (!retry || signal?.aborted) throw e;
       await ensureNode(url, port, args);
-      return post(body, false);
+      return post(body, signal, false);
     }
   }
+
+  // Requests still being answered, by id. When the client gives up on one
+  // (notifications/cancelled: the person interrupted the session during a
+  // 40-second wait, say), its answer must never arrive: a reply to an id the
+  // client has forgotten can cost the connection.
+  const inFlight = new Map();
 
   // Each message on its own: a `wait` read holds for up to 40 s, and the others shouldn't queue behind it.
   async function carry(line) {
@@ -135,7 +141,13 @@ export async function stdio(port, args) {
     try {
       const msg = JSON.parse(line);
       id = msg.id;
-      const r = await post(line);
+      if (msg.method === "notifications/cancelled") {
+        inFlight.get(msg.params?.requestId)?.abort();
+        return;
+      }
+      const abort = new AbortController();
+      if (id !== undefined) inFlight.set(id, abort);
+      const r = await post(line, abort.signal);
       if (msg.method === "initialize") {
         const session = r.headers.get("mcp-session-id");
         if (session) headers["mcp-session-id"] = session;
@@ -147,11 +159,15 @@ export async function stdio(port, args) {
         // Before the client sees the answer, so its next message carries the version.
         const result = msg.method === "initialize" ? JSON.parse(m).result : undefined;
         if (result?.protocolVersion) headers["mcp-protocol-version"] = result.protocolVersion;
+        if (abort.signal.aborted) return;
         write(m);
       }
     } catch (e) {
+      if (inFlight.get(id)?.signal.aborted) return;
       if (id !== undefined) write(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: String(e.message ?? e) } }));
       else say(String(e.message ?? e));
+    } finally {
+      inFlight.delete(id);
     }
   }
 
