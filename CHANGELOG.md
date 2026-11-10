@@ -10,6 +10,10 @@
 - `taasky disconnect` takes it all out.
 - The hosted server is `agent.taasky.ai`, which offers no sign-in, so
   Claude Code's /mcp no longer shows an "Authenticate" Taasky never needs.
+- Core from taasky-mcp ccfae7e (#88, #89). The node offers no sign-in by
+  itself now: core leaves the OAuth provider out with one person on every
+  seat, so the node's own workaround for it is gone. Invitations and a
+  browser party's page of a room take the work style too.
 
 ## 0.1.6
 

@@ -646,13 +646,55 @@ const WORK_STYLE = `
   .card-ask ul { margin: 0 0 .6rem; padding-left: 1.1rem; }
   .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: .4rem 0 .6rem; }
   .actions form { margin: 0; }
-  button, .button { font: 500 13px/1 var(--sans); height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--rule); background: transparent; color: var(--moon); cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; text-decoration: none; }
-  button:hover, .button:hover { border-color: var(--muted); }
+  button, .button, details > summary { font: 500 13px/1 var(--sans); height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--rule); background: transparent; color: var(--moon); cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; text-decoration: none; }
+  button:hover, .button:hover, details > summary:hover { border-color: var(--muted); }
   button.primary, .button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.ghost { color: var(--subtle); }
   .arrow { font-family: var(--mono); }
   .calendar-links { display: flex; flex-wrap: wrap; gap: 6px; }
   form { margin: 0; }
+
+  /* Answering: who it is from, options, fields. */
+  .narrow { max-width: 720px; }
+  code { font: 12px/1.4 var(--mono); background: var(--night); border: 1px solid var(--rule); padding: .05em .35em; border-radius: 3px; color: var(--champagne); overflow-wrap: anywhere; }
+  .with { margin: 0 0 .8rem; }
+  .with .mark { font: 11px/1 var(--mono); color: var(--ok); margin-left: .5rem; }
+  .with .mark::before { content: "✓ "; }
+  ul.fields { list-style: none; padding: 0; margin: .6rem 0 12px; background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; }
+  ul.fields li { padding: 8px 14px; border-top: 1px solid var(--rule-soft); }
+  ul.fields li:first-child { border-top: 0; }
+  label, legend { display: grid; gap: 4px; font: 11px/1.4 var(--mono); color: var(--subtle); }
+  label small { font-family: var(--sans); }
+  fieldset { border: 0; padding: 0; margin: 0 0 10px; display: grid; gap: 8px; }
+  input, select, textarea { font: 14px/1.3 var(--sans); color: var(--moon); background: var(--night); width: 100%; min-width: 0; height: 34px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 4px; }
+  textarea { height: auto; padding: 8px 10px; }
+  input:hover, select:hover, textarea:hover { border-color: var(--muted); }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; }
+  label.check { display: flex; align-items: center; gap: .5rem; font: 14px/1.4 var(--sans); color: var(--moon); }
+  label.check input { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); }
+  .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  /* A counter in the side column: one field under another, a time range stacked. */
+  details form { display: grid; gap: 12px; }
+  aside .row { grid-template-columns: minmax(0, 1fr); }
+  @media (max-width: 560px) { .row { grid-template-columns: minmax(0, 1fr); } }
+  .inline { width: auto; }
+  .options { display: grid; gap: 6px; margin: 0 0 12px; }
+  .options button { height: auto; min-height: 36px; padding: 8px 12px; white-space: normal; text-align: left; justify-content: flex-start; line-height: 1.4; }
+  .cta { margin: 12px 0; }
+  details { margin-top: 8px; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::after { content: "+"; font-family: var(--mono); color: var(--subtle); }
+  details[open] > summary::after { content: "–"; }
+  details[open] > summary { margin-bottom: 10px; }
+  .findings-box { margin: 0 0 12px; }
+  .findings-box > summary.eyebrow { border: 0; padding: 0; height: auto; }
+  .findings-box dd { margin: 0; }
+  .facts dd .to, .moves .what .sep { color: var(--subtle); }
+  .terms.sealed { border-color: color-mix(in oklab, var(--ok) 45%, var(--rule)); }
+  .terms.sealed .terms-foot { color: var(--ok); }
+  .picture .verdict { font: 600 15px/1.45 var(--sans); color: var(--moon); margin: 0; }
+  .picture .verdict.pending { font-weight: 400; color: var(--muted); }
 `;
 
 const LOGO = `<svg width="30" height="30" viewBox="3.3 3.55 24.9 24.9" aria-hidden="true">
@@ -716,7 +758,7 @@ export interface PageOptions {
   preview?: { title: string; description: string; image: string };
   /** A class on <body>, for styles only one kind of page uses. */
   bodyClass?: string;
-  /** A work page (WORK_STYLE): the person's own page of a room, opened from a terminal session. */
+  /** A work page (WORK_STYLE): rooms and invitations, a tool between the terminal and the chat. */
   work?: boolean;
 }
 

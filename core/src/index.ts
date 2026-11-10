@@ -9,7 +9,7 @@ import { issueKey, userForKey } from "./auth/keys.js";
 import * as db from "./db.js";
 import { expireRooms } from "./expiry.js";
 import { type FormsEnv, handleForms, sendLead } from "./forms.js";
-import { onItsHost } from "./hosts.js";
+import { onItsHost, withoutSignIn } from "./hosts.js";
 import { setLocalMode } from "./html.js";
 import { resolveHumanMove } from "./moves.js";
 import { logNotifier, type Notifier } from "./notifier.js";
@@ -145,8 +145,8 @@ function accountDeps(env: Env, a: Analytics): AccountDeps {
 }
 
 /** Everything OAuth does not protect: sign-in pages, key issuing, invites, health. */
-const publicRoutes: ExportedHandler<Env> = {
-  async fetch(request, env, ctx) {
+const publicRoutes = {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const a = analytics(env, ctx);
 
@@ -234,7 +234,7 @@ const publicRoutes: ExportedHandler<Env> = {
 
     return (await handleAuth(request, env, a)) ?? new Response("Not found", { status: 404 });
   },
-};
+} satisfies ExportedHandler<Env>;
 
 // The provider's options name the resource by its public URL, which comes from
 // env, so it is built on first request rather than at module load.
@@ -283,11 +283,13 @@ const worker = {
     const elsewhere = onItsHost(request, env);
     if (elsewhere) return elsewhere;
     const { pathname } = new URL(request.url);
+    const keylessOnly = withoutSignIn(request, env);
     const isMcp = pathname === "/mcp" || pathname === ACCOUNT_MCP;
     if (isMcp) {
       const user = devUser(request, env);
       if (user) return mcp(request, env, ctx, { userId: user });
-      if (pathname === "/mcp" && !request.headers.has("Authorization")) {
+      // A token left from an earlier sign-in would get a 401 and a sign-in window.
+      if (pathname === "/mcp" && (keylessOnly || !request.headers.has("Authorization"))) {
         return mcp(request, env, ctx, { keyless: true });
       }
     } else if (pathname !== "/health" && pathname !== WEBHOOK_PATH && !ROOM_POLL.test(pathname)) {
@@ -297,6 +299,8 @@ const worker = {
       const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
       if (await overLimit(env.AUTH_LIMITER, ip)) return tooMany();
     }
+    // Nothing to sign in to, so no provider to advertise a sign-in.
+    if (keylessOnly) return publicRoutes.fetch(request, env, ctx);
     const res = await oauth(env).fetch(request, env, ctx);
     return isMcp && res.status === 401 ? withKeyHint(res, env) : res;
   },

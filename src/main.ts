@@ -12,7 +12,6 @@ import { config } from "./config.js";
 import { SqliteD1 } from "./d1.js";
 import { SqliteKV } from "./kv.js";
 import { Limiter } from "./limiter.js";
-import { dropStaleToken, hidesOAuth } from "./local.js";
 import { serveStatic } from "./static.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -59,7 +58,6 @@ async function toRequest(req: IncomingMessage, url: URL): Promise<Request> {
   // The core keys its limits on CF-Connecting-IP. Behind a proxy, trust its header only when told to.
   const forwarded = cfg.trustProxy ? String(req.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() : "";
   headers.set("CF-Connecting-IP", forwarded || req.socket.remoteAddress || "unknown");
-  dropStaleToken(url.pathname, headers, cfg.oneHuman);
   const method = req.method ?? "GET";
   const body = method === "GET" || method === "HEAD" ? undefined : (req as unknown as ReadableStream);
   return new Request(url, { method, headers, body, duplex: "half" } as RequestInit);
@@ -83,7 +81,6 @@ async function send(res: ServerResponse, r: Response) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", cfg.baseUrl);
-    if (hidesOAuth(url.pathname, cfg.oneHuman)) return await send(res, new Response("Not found", { status: 404 }));
     const request = await toRequest(req, url);
     const asset = await serveStatic(join(root, "core/public"), request);
     const answer = asset ?? (await worker.fetch(request, env as never, context() as never));

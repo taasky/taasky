@@ -29,7 +29,7 @@ import { agreedEvent, type CalendarEvent, googleCalendarUrl, icsFile } from "../
 import * as db from "../db.js";
 import { formatDate, formatMoney } from "../format.js";
 import { appBase, type HostEnv } from "../hosts.js";
-import { duo, escapeHtml, htmlResponse, page, plate } from "../html.js";
+import { duo, escapeHtml, htmlResponse, type PageOptions, page } from "../html.js";
 import { userId as newUserId, webToken } from "../ids.js";
 import {
   ANSWERED,
@@ -74,6 +74,10 @@ import {
 } from "./agent-invite.js";
 import { cardHtml } from "./card.js";
 import { parseFields, renderFields, TIMERANGE_SCRIPT } from "./form.js";
+
+/** Every page here is part of a room: the work style, never the site's. */
+const workPage = (title: string, body: string, opts: PageOptions = {}) =>
+  page(title, body, { ...opts, work: true });
 
 export interface WebDeps extends HostEnv {
   DB: D1Database;
@@ -344,7 +348,7 @@ const LIVE_SCRIPT = `<script>
 
 function message(title: string, text: string, status = 200): Response {
   return htmlResponse(
-    page(
+    workPage(
       title,
       `<p class="eyebrow">Taasky</p><h1>${escapeHtml(title)}</h1><p class="lede">${escapeHtml(text)}</p>`,
       { narrow: true },
@@ -495,7 +499,7 @@ async function showInvite(deps: WebDeps, request: Request, code: string): Promis
       ? "Say yes, or suggest a change."
       : "Answer when it suits you.";
   return htmlResponse(
-    page(
+    workPage(
       from ? `A proposal from ${from.name}` : "A proposal for you",
       `<div class="split">
   <section>
@@ -520,15 +524,14 @@ async function showInvite(deps: WebDeps, request: Request, code: string): Promis
     <p><small>Nothing is agreed until you both say yes. ${name ?? "The person who sent this"} wrote the labels above. Answering
     means you accept our <a href="https://taasky.ai/terms/">Terms</a> and
     <a href="https://taasky.ai/privacy/">Privacy Policy</a>.</small></p>
-    <div class="side-note">
-      <p class="eyebrow quiet" style="margin:0">Have an agent of your own?</p>
+  </section>
+  <aside><div class="side-note">
+      <p class="eyebrow">Have an agent of your own?</p>
       <p>Give it this link, and it can answer for you. You still confirm. If it is not connected to
       Taasky yet, the address is <code>${escapeHtml(mcpUrl)}</code>.
       An agent can read this invitation as <a href="?format=md">Markdown</a> or
       <a href="?format=json">JSON</a>.</p>
-    </div>
-  </section>
-  <aside>${plate("/img/invitation.webp", "A sealed envelope on a dark table, lit from above", "Fig. 1", "An invitation, sealed")}</aside>
+  </div></aside>
 </div>${opening ? LOCAL_TIME_SCRIPT : ""}`,
       { preview: invitePreview(from) },
     ),
@@ -705,7 +708,7 @@ function sharedPicture(schema: SubjectSchema, subject: Record<string, unknown>):
   ${conclusion ? `<p class="verdict${conclusion.length > 140 ? " long" : ""}">${escapeHtml(conclusion)}</p>` : `<p class="verdict pending">No conclusion yet.</p>`}
 </div>
   ${restRows ? `<dl class="facts">${restRows}</dl>` : ""}
-  <details class="findings-box"><summary>${label("findings")} · ${escapeHtml(counts)}</summary>
+  <details class="findings-box"><summary class="eyebrow">${label("findings")} · ${escapeHtml(counts)}</summary>
   <div class="facts"><dd class="findings">${findingList(findings as unknown[])}</dd></div></details>`;
 }
 
@@ -1042,10 +1045,9 @@ async function showRoom(
     const review = await reviewRoom(deps, loaded, asked, them, `/r/${link.token}.md`, error);
     if (review) {
       return htmlResponse(
-        page(roomName(room.id).name, `${review}${LOCAL_TIME_SCRIPT}${REVIEW_LIVE_SCRIPT}`, {
+        workPage(roomName(room.id).name, `${review}${LOCAL_TIME_SCRIPT}${REVIEW_LIVE_SCRIPT}`, {
           refreshSeconds: done ? undefined : 30,
           bodyClass: "wide",
-          work: true,
         }),
         error ? 422 : 200,
       );
@@ -1268,13 +1270,12 @@ async function showRoom(
   const waiting = !done;
   const version = await db.roomVersion(deps.DB, room.id);
   return htmlResponse(
-    page(
+    workPage(
       roomName(room.id).name,
       `<div class="split" data-v="${version}" data-wait="${waiting ? 1 : 0}"><section>${lead.join("\n")}</section><aside>${side.join("\n")}</aside></div>${LOCAL_TIME_SCRIPT}${TIMERANGE_SCRIPT}${LIVE_SCRIPT}`,
       // Without JavaScript, never reload under a form someone may be filling in.
       {
         refreshSeconds: waiting && (readOnly || !yourTurn) ? 30 : undefined,
-        work: readOnly,
       },
     ),
     error ? 422 : 200,
